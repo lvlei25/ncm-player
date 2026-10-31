@@ -18,7 +18,8 @@ linux:
     - AppImage
     - deb
   category: AudioVideo
-  icon: build/icon.png
+  # 多尺寸目录：GNOME dock / Wayland 会按实际 DPI 取用最合适的一档
+  icon: build/icons
   maintainer: ncm-player
   synopsis: 网易云音乐桌面播放器
   description: 基于 ncm-cli 的网易云音乐桌面播放器，支持搜索、歌单、歌词与 AI 点歌。

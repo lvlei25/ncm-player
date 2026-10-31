@@ -1,4 +1,5 @@
 import { app, BrowserWindow, globalShortcut, shell } from 'electron'
+import fs from 'node:fs'
 import path from 'node:path'
 import { registerIpc } from './ipc'
 import { ensurePlayerBackend } from './ncm/session'
@@ -11,6 +12,18 @@ let quitting = false
 
 // 虚拟机 / 无 GPU 环境下强制软件渲染，避免 GPU 进程反复崩溃
 if (process.env.NCM_DISABLE_GPU === '1') app.disableHardwareAcceleration()
+
+/** 窗口/任务栏图标：优先 512 多尺寸图标，找不到时回落到单图 */
+function resolveWindowIcon(): string {
+  const base = app.isPackaged ? process.resourcesPath : app.getAppPath()
+  const candidates = [
+    path.join(base, 'icons', '512x512.png'),
+    path.join(base, 'build', 'icons', '512x512.png'),
+    path.join(base, 'icon.png'),
+    path.join(base, 'build', 'icon.png'),
+  ]
+  return candidates.find((file) => fs.existsSync(file)) ?? candidates[candidates.length - 1]
+}
 
 function broadcast(): void {
   const state = player.snapshot()
@@ -28,7 +41,7 @@ function createWindow(): void {
     show: false,
     frame: false,
     backgroundColor: '#08080B',
-    icon: path.join(app.getAppPath(), 'build', 'icon.png'),
+    icon: resolveWindowIcon(),
     title: '黑胶 · 网易云音乐',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
