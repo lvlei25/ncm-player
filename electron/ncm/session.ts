@@ -22,9 +22,11 @@ function versionOf(text: string): string {
 }
 
 export async function checkEnv(): Promise<EnvReport> {
-  const [cli, mpv] = await Promise.all([
+  const [cli, mpv, node] = await Promise.all([
     execRaw(CLI_BIN, ['--version'], 10000),
     execRaw('mpv', ['--version'], 8000),
+    // 必须看「系统 node」：ncm-cli 的 shebang 是 /usr/bin/env node，与 Electron 内置 node 无关
+    execRaw('node', ['--version'], 8000),
   ])
 
   const cliOk = /^\d+\.\d+\.\d+/m.test(cli.stdout.trim())
@@ -43,8 +45,13 @@ export async function checkEnv(): Promise<EnvReport> {
     loggedIn = json ? /"success"\s*:\s*true/.test(res.stdout) && !/未登录/.test(res.stdout) : false
   }
 
+  const nodeVersion = versionOf(node.stdout) || process.versions.node
+  const nodeOk = /^\d+\.\d+\.\d+/.test(nodeVersion)
+  const [major = 0, minor = 0] = nodeVersion.split('.').map(Number)
+  const promptSupport = nodeOk && (major > 22 || (major === 22 && minor >= 12) || major >= 23)
+
   return {
-    node: { ok: Boolean(process.versions.node), version: process.versions.node },
+    node: { ok: nodeOk, version: nodeVersion, promptSupport },
     ncmCli: { ok: cliOk, version: versionOf(cli.stdout) },
     mpv: { ok: mpvOk, version: versionOf(mpv.stdout) },
     configured: Boolean(appId),

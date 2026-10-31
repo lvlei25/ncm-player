@@ -164,7 +164,7 @@ export const mockBridge: NcmBridge = {
   env: {
     check: async () =>
       ok({
-        node: { ok: true, version: '18.19.1' },
+        node: { ok: true, version: '22.12.0', promptSupport: true },
         ncmCli: { ok: true, version: '0.1.7' },
         mpv: { ok: true, version: '0.37.0' },
         configured: true,

@@ -62,7 +62,8 @@ export interface LyricPayload {
 }
 
 export interface EnvReport {
-  node: { ok: boolean; version: string }
+  /** promptSupport=false 表示 Node < 22.12，ncm-cli 的交互式命令会报 ERR_REQUIRE_ESM */
+  node: { ok: boolean; version: string; promptSupport?: boolean }
   ncmCli: { ok: boolean; version: string }
   mpv: { ok: boolean; version: string }
   configured: boolean

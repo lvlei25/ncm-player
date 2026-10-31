@@ -23,7 +23,8 @@ React 渲染层 → contextBridge → IPC 白名单 → ncm-cli 适配层 → nc
 ## 环境要求
 
 - Ubuntu 22.04+（本项目在 24.04 / X11 实测）
-- Node.js ≥ 18（ncm-cli 的 `engines` 要求）
+- **Node.js ≥ 22.12**（ncm-cli 的 `engines` 只写了 ≥18，但它依赖的 `@clack/prompts@1.x` 是纯 ESM 包，
+  Node 22.12+ 才支持 `require(esm)`；用 18/20 运行 `ncm-cli configure` 会直接抛 `ERR_REQUIRE_ESM`）
 - `mpv`（ncm-cli 的默认播放后端）
 - 网易云音乐开放平台账号（个人实名入驻），用于获取 appId / privateKey
 
@@ -38,6 +39,25 @@ ncm-cli --version   # 期望 0.1.x
 # 3. 首次配置（也可以完全在应用向导里完成）
 ncm-cli configure
 ```
+
+`configure` 需要交互式终端。在脚本或非 TTY 环境里可以这样写：
+
+```bash
+ncm-cli configure --app-id=<appId> --private-key-file=/path/to/key.txt
+# 或
+NETEASE_APP_ID=<appId> NETEASE_PRIVATE_KEY=<privateKey> ncm-cli login
+```
+
+**如果 Node 版本不够**（`ERR_REQUIRE_ESM: require() of ES Module ... @clack/prompts`），升级：
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+node -v   # 需 ≥ 22.12
+```
+
+也可以临时指定 node 二进制：`sudo ln -sf /path/to/node22/bin/node /usr/local/bin/node`
+（`/usr/bin/env node` 会优先命中 `/usr/local/bin/node`）。
 
 > 安装 mpv 时若遇到 `udev 依赖 libudev1` 版本冲突，可执行
 > `sudo apt install -y --allow-downgrades libudev1=<udev 要求的版本> mpv`。

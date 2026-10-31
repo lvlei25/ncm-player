@@ -160,7 +160,13 @@ export function Setup({ env, session, onDone }: SetupProps) {
 
               <div className="mt-6 space-y-2.5">
                 {[
-                  { key: 'node', label: 'Node.js', ok: env?.node.ok ?? false, version: env?.node.version, cmd: 'sudo apt install nodejs' },
+                  {
+                    key: 'node',
+                    label: 'Node.js（需 ≥ 22.12）',
+                    ok: env?.node.ok ?? false,
+                    version: env?.node.version,
+                    cmd: 'curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs',
+                  },
                   {
                     key: 'cli',
                     label: 'ncm-cli',
@@ -188,6 +194,11 @@ export function Setup({ env, session, onDone }: SetupProps) {
                             ? `v${row.version ?? '—'} 可用`
                             : `未检测到，执行：${row.cmd}`}
                       </p>
+                      {!checking && row.key === 'node' && env?.node.promptSupport === false && (
+                        <p className="mt-0.5 text-[10.5px] leading-relaxed text-amber-400">
+                          当前版本会让 ncm-cli 的交互式命令报 ERR_REQUIRE_ESM（@clack/prompts 是纯 ESM 包），请升级到 22.12+
+                        </p>
+                      )}
                     </div>
                     {!row.ok && (
                       <button
