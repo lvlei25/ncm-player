@@ -1,0 +1,27 @@
+appId: com.ncm.player
+productName: 黑胶音乐
+copyright: ncm-player
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+extraResources:
+  - from: build/icon.png
+    to: icon.png
+extraMetadata:
+  main: dist-electron/main.cjs
+linux:
+  target:
+    - AppImage
+    - deb
+  category: AudioVideo
+  icon: build/icon.png
+  maintainer: ncm-player
+  synopsis: 网易云音乐桌面播放器
+  description: 基于 ncm-cli 的网易云音乐桌面播放器，支持搜索、歌单、歌词与 AI 点歌。
+deb:
+  depends:
+    - mpv
