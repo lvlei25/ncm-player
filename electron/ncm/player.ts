@@ -1,6 +1,6 @@
 import type { PlaybackState, PlaybackStatus, QueueSnapshot, Track } from '../../src/shared/types'
 import { loadConfig, saveConfig } from '../store'
-import { playerQueue, runCli } from './runner'
+import { runCli } from './runner'
 
 type Listener = (state: PlaybackState) => void
 
@@ -87,12 +87,12 @@ class Player {
     const args = ['play', '--song', '--encrypted-id', track.id]
     if (track.originalId) args.push('--original-id', track.originalId)
 
-    await playerQueue.run(() => runCli(args))
+    await runCli(args)
     this.startPolling()
   }
 
   /** 播放整个歌单：交给 CLI 的 playlist 模式，同时保留本地镜像 */
-  async playPlaylist(playlistId: string, tracks: Track[]): Promise<void> {
+  async playPlaylist(playlistId: string, tracks: Track[], originalId?: string): Promise<void> {
     this.tracks = tracks.filter((t) => t.playable !== false)
     this.index = 0
     this.status = 'playing'
@@ -101,22 +101,20 @@ class Player {
     this.startedAt = Date.now()
     this.emit()
 
-    await playerQueue.run(() =>
-      runCli(['play', '--playlist', '--encrypted-id', playlistId, '--original-id', playlistId]),
-    )
+    await runCli(['play', '--playlist', '--encrypted-id', playlistId, '--original-id', originalId ?? playlistId])
     this.startPolling()
   }
 
   async toggle(): Promise<void> {
     if (this.status === 'playing') {
-      await playerQueue.run(() => runCli(['pause']))
+      await runCli(['pause'])
       this.status = 'paused'
       this.emit()
       this.stopPolling()
       return
     }
     if (this.status === 'paused') {
-      await playerQueue.run(() => runCli(['resume']))
+      await runCli(['resume'])
       this.status = 'playing'
       this.emit()
       this.startPolling()
@@ -135,7 +133,7 @@ class Player {
     const target = Math.max(0, Math.min(seconds, this.duration || seconds))
     this.position = target
     this.emit()
-    await playerQueue.run(() => runCli(['seek', String(Math.round(target))]))
+    await runCli(['seek', String(Math.round(target))])
   }
 
   setVolume(level: number): void {
@@ -146,7 +144,7 @@ class Player {
 
     if (this.volumeTimer) clearTimeout(this.volumeTimer)
     this.volumeTimer = setTimeout(() => {
-      playerQueue.run(() => runCli(['volume', String(clamped)])).catch(() => undefined)
+      runCli(['volume', String(clamped)]).catch(() => undefined)
     }, 140)
   }
 
@@ -156,7 +154,7 @@ class Player {
     const args = ['queue', 'add', '--encrypted-id', track.id]
     if (track.originalId) args.push('--original-id', track.originalId)
     if (next) args.push('--next')
-    await playerQueue.run(() => runCli(args)).catch(() => undefined)
+    await runCli(args).catch(() => undefined)
   }
 
   async queueClear(): Promise<void> {
@@ -167,7 +165,7 @@ class Player {
     this.duration = 0
     this.emit()
     this.stopPolling()
-    await playerQueue.run(() => runCli(['queue', 'clear'])).catch(() => undefined)
+    await runCli(['queue', 'clear']).catch(() => undefined)
   }
 
   removeAt(index: number): void {

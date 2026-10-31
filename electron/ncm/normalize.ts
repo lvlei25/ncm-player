@@ -13,7 +13,7 @@ const ID_KEYS = ['encryptedId', 'encrypted_id', 'encryptId', 'eId', 'songId', 't
 const NAME_KEYS = ['name', 'songName', 'songname', 'title']
 const ARTIST_KEYS = ['artists', 'ar', 'artist', 'singer', 'singers']
 const ALBUM_KEYS = ['album', 'al', 'albumName']
-const COVER_KEYS = ['coverUrl', 'coverImgUrl', 'picUrl', 'img1v1Url', 'imageUrl', 'cover', 'img']
+const COVER_KEYS = ['coverImgUrl', 'coverUrl', 'picUrl', 'img1v1Url', 'imageUrl', 'cover', 'img']
 const DURATION_KEYS = ['duration', 'dt', 'durationMs', 'interval', 'time']
 
 function pick(o: Dict, keys: string[]): unknown {
@@ -62,6 +62,12 @@ function hasCover(o: Dict): boolean {
   return COVER_KEYS.some((k) => typeof o[k] === 'string' && (o[k] as string).length > 0)
 }
 
+/** 网易云 CDN 同时支持 https，统一升级避免部分环境加载失败 */
+function https(url?: string): string | undefined {
+  if (!url) return undefined
+  return url.startsWith('http://') ? `https://${url.slice(7)}` : url
+}
+
 function looksLikeTrack(o: Dict): boolean {
   const hasName = NAME_KEYS.some((k) => typeof o[k] === 'string')
   const hasId = ID_KEYS.some((k) => typeof o[k] === 'string' || typeof o[k] === 'number')
@@ -103,7 +109,9 @@ function toTrack(o: Dict): Track | null {
   const cover = pickString(o, COVER_KEYS) ?? (typeof coverFromAlbum === 'string' ? coverFromAlbum : undefined)
 
   const originalIdRaw = pick(o, ['originalId', 'original_id', 'songOriginalId', 'plainId'])
-  const visible = o.visible === false ? false : true
+  // visible 是 skill 文档里的字段；真实接口用 noCopyrightRcmd 表示无版权
+  const noCopyright = Boolean(o.noCopyrightRcmd && typeof o.noCopyrightRcmd === 'object')
+  const visible = o.visible === false || noCopyright ? false : true
 
   return {
     id: String(idRaw),
@@ -113,7 +121,7 @@ function toTrack(o: Dict): Track | null {
     album: albumName,
     albumId,
     durationMs: durationOf(o),
-    coverUrl: cover,
+    coverUrl: https(cover),
     playable: visible,
     reason: visible ? undefined : typeof o.reason === 'string' ? o.reason : '该资源暂不可播放',
   }
@@ -125,11 +133,14 @@ function toPlaylist(o: Dict): Playlist | null {
   if (idRaw === undefined || !name) return null
   return {
     id: String(idRaw),
+    originalId: o.originalId !== undefined ? String(o.originalId) : undefined,
     name,
-    coverUrl: pickString(o, COVER_KEYS),
+    coverUrl: https(pickString(o, COVER_KEYS)),
     trackCount: pickNumber(o, ['trackCount', 'songCount', 'count']),
-    creator: isObj(o.creator) ? pickString(o.creator, ['nickname', 'name']) : pickString(o, ['creator', 'creatorName']),
-    description: typeof o.description === 'string' ? o.description : undefined,
+    creator: isObj(o.creator)
+      ? pickString(o.creator, ['nickname', 'name'])
+      : pickString(o, ['creatorNickName', 'creator', 'creatorName']),
+    description: pickString(o, ['describe', 'description']),
     playable: o.playable === false ? false : true,
   }
 }

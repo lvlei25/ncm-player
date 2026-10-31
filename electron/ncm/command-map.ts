@@ -46,8 +46,8 @@ export const CAPABILITY_COMMANDS: Record<CapabilityId, CommandSpec[]> = {
     { argv: ['lyric', '--songId', '{songId}'], requiresUserInput: true },
   ],
   playlistDetail: [
-    { argv: ['playlist', 'detail', '--playlistId', '{playlistId}'], requiresUserInput: true },
     { argv: ['playlist', 'get', '--playlistId', '{playlistId}'], requiresUserInput: true },
+    { argv: ['playlist', 'detail', '--playlistId', '{playlistId}'], requiresUserInput: true },
     { argv: ['playlist', '--playlistId', '{playlistId}'], requiresUserInput: true },
   ],
   dailyRecommend: [
@@ -56,14 +56,15 @@ export const CAPABILITY_COMMANDS: Record<CapabilityId, CommandSpec[]> = {
     { argv: ['recommend'], requiresUserInput: true },
   ],
   recommendPlaylists: [
-    { argv: ['recommend', 'playlist'], requiresUserInput: true },
-    { argv: ['playlist', 'recommend'], requiresUserInput: true },
+    // 实测：recommend 只有 daily/fm/heartbeat，没有 playlist 子命令；雷达歌单才是个性化推荐
+    { argv: ['playlist', 'radar'], requiresUserInput: true },
+    { argv: ['playlist', 'collected'], requiresUserInput: true },
     { argv: ['recommend'], requiresUserInput: true },
   ],
   userPlaylists: [
+    { argv: ['playlist', 'collected'], requiresUserInput: true },
+    { argv: ['playlist', 'created'], requiresUserInput: true },
     { argv: ['user', 'playlists'], requiresUserInput: true },
-    { argv: ['playlist', 'mine'], requiresUserInput: true },
-    { argv: ['playlist', 'list'], requiresUserInput: true },
   ],
   redHeart: [
     { argv: ['song', 'like'], requiresUserInput: true },

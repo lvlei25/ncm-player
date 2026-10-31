@@ -147,7 +147,9 @@ export function Sidebar({ collapsed, onToggle, onOpenPanel, onOpenQueue, activeT
           </div>
           {!collapsed && (
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[12px] text-cloud-100">{session?.nickname ?? '未登录'}</p>
+              <p className="truncate text-[12px] text-cloud-100">
+                {session?.nickname ?? (session?.loggedIn ? '已登录账号' : '未登录')}
+              </p>
               <p className="truncate text-[10px] text-cloud-500">
                 {session?.loggedIn ? '已连接账号' : '扫码后解锁全部能力'}
               </p>

@@ -28,6 +28,12 @@ export class SerialQueue {
 }
 
 export const playerQueue = new SerialQueue()
+/**
+ * 所有 CLI 调用共用的串行队列。
+ * 并行拉起多个 ncm-cli 进程会让刷新 token 的写操作互相覆盖，
+ * 实测表现为「其中一个请求返回空数据」，因此统一排队执行。
+ */
+export const cliQueue = new SerialQueue()
 
 interface RunOptions {
   timeout?: number
@@ -91,7 +97,11 @@ export function execRaw(bin: string, args: string[], timeout = 8000): Promise<Ex
  * 执行 ncm-cli 子命令。
  * 命令树由服务端下发，参数一律以数组传递（不经过 shell），避免注入。
  */
-export async function runCli(args: string[], options: RunOptions = {}): Promise<CliEnvelope> {
+export function runCli(args: string[], options: RunOptions = {}): Promise<CliEnvelope> {
+  return cliQueue.run(() => execCli(args, options))
+}
+
+async function execCli(args: string[], options: RunOptions = {}): Promise<CliEnvelope> {
   const argv = options.json === false ? [...args] : [...args, '--output', 'json']
   const timeout = options.timeout ?? DEFAULT_TIMEOUT
 

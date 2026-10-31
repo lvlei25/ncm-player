@@ -101,8 +101,10 @@ export function registerIpc(): void {
     player.setQueue(trackListSchema.parse(tracks) as Track[], Number(index) || 0, true)
     return true
   })
-  handle('player:play-playlist', (id: string, tracks: unknown) =>
-    player.playPlaylist(String(id), trackListSchema.parse(tracks) as Track[]).then(() => true),
+  handle('player:play-playlist', (id: string, tracks: unknown, originalId?: string) =>
+    player
+      .playPlaylist(String(id), trackListSchema.parse(tracks) as Track[], originalId ? String(originalId) : undefined)
+      .then(() => true),
   )
   handle('player:toggle', () => player.toggle().then(() => true))
   handle('player:next', () => player.step(1).then(() => true))

@@ -39,7 +39,7 @@ export interface NcmBridge {
     queue: () => Promise<IpcResult<QueueSnapshot>>
     playTrack: (track: Track) => Promise<IpcResult<boolean>>
     playQueue: (tracks: Track[], index?: number) => Promise<IpcResult<boolean>>
-    playPlaylist: (id: string, tracks: Track[]) => Promise<IpcResult<boolean>>
+    playPlaylist: (id: string, tracks: Track[], originalId?: string) => Promise<IpcResult<boolean>>
     toggle: () => Promise<IpcResult<boolean>>
     next: () => Promise<IpcResult<boolean>>
     prev: () => Promise<IpcResult<boolean>>

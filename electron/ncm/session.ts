@@ -74,10 +74,18 @@ export async function getSession(): Promise<SessionStatus> {
     const text = `${res.stdout}${res.stderr}`
     const parsed = text.includes('{') ? safeParse(text) : null
     loggedIn = Boolean(parsed && parsed.success === true)
-    if (loggedIn && parsed) {
-      const data = (parsed.data ?? parsed.user ?? parsed) as Record<string, unknown>
-      nickname = typeof data.nickname === 'string' ? data.nickname : undefined
-      avatarUrl = typeof data.avatarUrl === 'string' ? data.avatarUrl : undefined
+
+    // login --check 只回一句「已登录实名账号」，昵称要从 user info 取
+    if (loggedIn) {
+      const infoRes = await execRaw(CLI_BIN, ['user', 'info', '--output', 'json'], 8000)
+      const info = `${infoRes.stdout}${infoRes.stderr}`.includes('{')
+        ? safeParse(`${infoRes.stdout}${infoRes.stderr}`)
+        : null
+      const data = (info?.data ?? info) as Record<string, unknown> | null
+      if (data && typeof data.nickname === 'string') nickname = data.nickname
+      if (data && typeof data.avatarUrl === 'string') {
+        avatarUrl = data.avatarUrl.replace(/^http:/, 'https:')
+      }
     }
   }
 

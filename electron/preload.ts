@@ -42,7 +42,8 @@ const api = {
     queue: () => invoke<QueueSnapshot>('player:queue'),
     playTrack: (track: Track) => invoke<boolean>('player:play-track', track),
     playQueue: (tracks: Track[], index = 0) => invoke<boolean>('player:play-queue', tracks, index),
-    playPlaylist: (id: string, tracks: Track[]) => invoke<boolean>('player:play-playlist', id, tracks),
+    playPlaylist: (id: string, tracks: Track[], originalId?: string) =>
+      invoke<boolean>('player:play-playlist', id, tracks, originalId),
     toggle: () => invoke<boolean>('player:toggle'),
     next: () => invoke<boolean>('player:next'),
     prev: () => invoke<boolean>('player:prev'),

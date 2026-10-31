@@ -17,7 +17,10 @@ export interface Track {
 }
 
 export interface Playlist {
+  /** 加密 ID（32 位 hex），playlist get / play --playlist 用 */
   id: string
+  /** 明文数字 ID，用于 music.163.com 链接与客户端唤起 */
+  originalId?: string
   name: string
   coverUrl?: string
   trackCount?: number

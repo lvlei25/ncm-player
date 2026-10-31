@@ -30,7 +30,7 @@ interface AppState {
   setVolume: (level: number) => Promise<void>
   playTrack: (track: Track) => Promise<void>
   playQueue: (tracks: Track[], index?: number) => Promise<void>
-  playPlaylist: (id: string, tracks: Track[]) => Promise<void>
+  playPlaylist: (id: string, tracks: Track[], originalId?: string) => Promise<void>
   queueAdd: (track: Track) => Promise<void>
   queueClear: () => Promise<void>
   queueRemove: (index: number) => Promise<void>
@@ -142,8 +142,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (err) get().notify({ kind: 'error', text: err })
     set({ queue: { tracks, currentIndex: index } })
   },
-  playPlaylist: async (id, tracks) => {
-    const res = await api.player.playPlaylist(id, tracks)
+  playPlaylist: async (id, tracks, originalId) => {
+    const res = await api.player.playPlaylist(id, tracks, originalId)
     const err = failureText(res)
     if (err) get().notify({ kind: 'error', text: err })
     set({ queue: { tracks, currentIndex: 0 } })

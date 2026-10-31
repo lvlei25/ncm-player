@@ -142,7 +142,8 @@ export function Discover() {
                       api.catalog
                         .playlist(playlist.id)
                         .then((res) => {
-                          if (res.ok) void playPlaylist(playlist.id, res.data.tracks)
+                          if (res.ok)
+                            void playPlaylist(playlist.id, res.data.tracks, res.data.playlist?.originalId)
                           else notify({ kind: 'error', text: failureText(res) ?? '歌单加载失败' })
                         })
                         .catch((error) => console.error('[playlist]', error))
