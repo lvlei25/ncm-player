@@ -172,5 +172,6 @@ export function registerIpc(): void {
     if (win.isMaximized()) win.unmaximize()
     else win.maximize()
   })
-  ipcMain.on('window:close', (event) => BrowserWindow.fromWebContents(event.sender)?.hide())
+  // 点标题栏的关闭 = 真正退出（退出流程会先停播放），而不是藏到托盘
+  ipcMain.on('window:close', (event) => BrowserWindow.fromWebContents(event.sender)?.close())
 }

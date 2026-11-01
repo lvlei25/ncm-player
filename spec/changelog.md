@@ -2,6 +2,47 @@
 
 倒序记录，最新在最上。每条包含：变更内容 / 原因 / 影响文件 / 验证方式。
 
+## v0.6.2 — 2026-11-01 修复：退出应用后音乐仍在播放
+
+**现象**：关闭应用窗口后，音乐继续播放。
+
+**根因（两层）**
+
+1. 标题栏的 X 按钮走的是 IPC `window:close` → `win.hide()`，
+   窗口藏到托盘、进程存活，播放自然继续；同时 `mainWindow.on('close')` 里也做了 `preventDefault()` + `hide()`。
+2. 即便真正退出（托盘「退出」/`app.quit()`），退出流程只清理了定时器与托盘，
+   **从未下发 `ncm-cli stop`**。mpv 是 ncm-cli 拉起的独立进程，应用退出后它照常出声。
+
+**修复**
+
+- `ipc.ts`：`window:close` 改为 `win.close()`（走正常关闭流程）
+- `main.ts`：删除「关闭即隐藏」逻辑；`window-all-closed` → `app.quit()`；
+  新增 `shutdown()`：先 `await player.stop()`（`ncm-cli stop`，5s 超时），再注销快捷键、销毁托盘、结束进程；
+  `before-quit` 用 `preventDefault()` + 二次确认标记保证异步清理能跑完
+- `player.ts`：新增 `stop()`，停轮询、清状态、下发 `ncm-cli stop`
+- `TitleBar`：X 按钮 aria-label 从「关闭到托盘」改为「退出应用」
+
+**行为变更（重要）**
+
+关闭窗口 = 退出应用并停止播放；需要后台播放请用**最小化**（进程存活、音乐继续）。
+README 的「功能」「界面导览」「日常操作」已同步。
+
+**验证**
+
+播放《飞云之下》时 Alt+F4 关闭窗口：
+
+```
+ncm-cli state → {"status":"stopped","position":0}
+ps 中 electron 进程数 → 0
+```
+
+**遗留说明**：`ncm-cli stop` 后 mpv 会转为 `--idle` 常驻（静音、不出声），
+这是 CLI 的快速恢复设计，已在 README「已知限制」记录。
+
+**影响文件**
+
+`electron/{main,ipc}.ts`、`electron/ncm/player.ts`、`src/components/TitleBar.tsx`、`README.md`、`spec/*`、`docs/test-cases.md`
+
 ## v0.6.1 — 2026-11-01 deb 实机验收与两处修复
 
 **背景**：实际安装 `release/ncm-player_1.0.0_amd64.deb` 并按「应用列表 → 点击图标」的真实路径启动，

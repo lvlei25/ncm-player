@@ -62,7 +62,7 @@ export function TitleBar() {
             </button>
             <button
               type="button"
-              aria-label="关闭到托盘"
+              aria-label="退出应用"
               onClick={() => api.app.close()}
               className="flex h-7 w-7 items-center justify-center rounded-md text-cloud-400 transition hover:bg-ncm hover:text-white"
             >

@@ -157,6 +157,15 @@ class Player {
     await runCli(args).catch(() => undefined)
   }
 
+  /** 应用退出时调用：mpv 是独立进程，必须显式 stop 才不会继续出声 */
+  async stop(): Promise<void> {
+    this.stopPolling()
+    this.status = 'stopped'
+    this.position = 0
+    this.emit()
+    await runCli(['stop'], { timeout: 5000 }).catch(() => undefined)
+  }
+
   async queueClear(): Promise<void> {
     this.tracks = []
     this.index = -1

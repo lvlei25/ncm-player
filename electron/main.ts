@@ -9,7 +9,7 @@ import { createTray, destroyTray } from './tray'
 const DEV_URL = process.env.NCM_DEV_SERVER
 const bootAt = Date.now()
 let mainWindow: BrowserWindow | null = null
-let quitting = false
+let shuttingDown = false
 
 // 虚拟机 / 无 GPU 环境下强制软件渲染，避免 GPU 进程反复崩溃
 if (process.env.NCM_DISABLE_GPU === '1') app.disableHardwareAcceleration()
@@ -72,14 +72,6 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  // 关闭时缩到托盘，真正退出走托盘菜单
-  mainWindow.on('close', (event) => {
-    if (!quitting) {
-      event.preventDefault()
-      mainWindow?.hide()
-    }
-  })
-
   mainWindow.on('closed', () => {
     mainWindow = null
   })
@@ -93,6 +85,17 @@ function showWindow(): void {
   if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.show()
   mainWindow.focus()
+}
+
+/** 真正退出：先停播放，再清理资源，最后结束进程 */
+async function shutdown(): Promise<void> {
+  if (shuttingDown) return
+  shuttingDown = true
+  await player.stop().catch((error) => console.error('[shutdown] stop failed', error))
+  globalShortcut.unregisterAll()
+  destroyTray()
+  player.dispose()
+  app.exit(0)
 }
 
 function registerMediaKeys(): void {
@@ -131,14 +134,21 @@ if (!gotLock) {
   app.on('activate', () => showWindow())
 
   app.on('window-all-closed', () => {
-    // 保持后台播放，不退出
+    app.quit()
   })
 
-  app.on('before-quit', () => {
-    quitting = true
+  /**
+   * 退出前必须停掉播放：mpv 是 ncm-cli 拉起的独立进程，
+   * 不显式 `ncm-cli stop` 的话，应用退出后音乐还会继续响。
+   */
+  app.on('before-quit', (event) => {
+    if (shuttingDown) return
+    event.preventDefault()
+    void shutdown()
   })
 
   app.on('will-quit', () => {
+    // 兜底清理（正常路径已在 shutdown 里做过，这里都幂等）
     globalShortcut.unregisterAll()
     destroyTray()
     player.dispose()
