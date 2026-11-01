@@ -76,6 +76,30 @@ npm run dist       # 打包 deb + AppImage 到 release/
 `npm run dev:web` 会把 `window.ncm` 缺失的场景交给 `src/lib/mock.ts`，
 因此无需真实账号也能完整走查界面与交互。
 
+## 规格与性能
+
+本轮迭代按 spec 驱动，规格文档在 `spec/`：
+
+- `spec/requirements.md` — 实测基线（每条 CLI 调用耗时）、7 条可验收需求、验收结果对比
+- `spec/design.md` — 缓存、懒加载、轮询让路的取舍与风险
+- `spec/tasks.md` — 11 项任务与逐项实测数据
+
+关键数字：
+
+| 指标 | 优化前 | 现在 |
+| --- | --- | --- |
+| 窗口可见 | ≈ 4.65 s | **437 ms** |
+| 启动期阻塞 CLI 调用 | 6 次 | **0 次** |
+| 安装包 `app.asar` | 36 MB | **524 KB** |
+
+观测方式：
+
+```bash
+NCM_DEBUG=1 npm run dev
+# [boot] window ready 437ms
+# [cli] recommend daily ... 1470ms
+```
+
 ## 架构
 
 ```

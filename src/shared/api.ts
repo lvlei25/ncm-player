@@ -22,7 +22,10 @@ export interface NcmBridge {
     check: () => Promise<IpcResult<EnvReport>>
   }
   session: {
-    status: () => Promise<IpcResult<SessionStatus>>
+    /** force=true 绕过 60s 会话缓存（用户显式点刷新时用） */
+    status: (force?: boolean) => Promise<IpcResult<SessionStatus>>
+    /** 后台探测修正后的会话状态（冷启动先用本地缓存渲染） */
+    onChange: (cb: (session: SessionStatus) => void) => () => void
     save: (appId: string, privateKey: string) => Promise<IpcResult<boolean>>
     loginStart: () => Promise<IpcResult<LoginTicket>>
     logout: () => Promise<IpcResult<boolean>>

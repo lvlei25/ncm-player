@@ -5,7 +5,7 @@ import { chat } from './ai/service'
 import { getDailyRecommend, getLyric, getPlaylistDetail, getRecommendedPlaylists, search } from './ncm/catalog'
 import { player } from './ncm/player'
 import { NcmError } from './ncm/runner'
-import { checkEnv, getSession, logout, setCredentials, startLogin } from './ncm/session'
+import { checkEnv, getSession, invalidateSession, logout, setCredentials, startLogin } from './ncm/session'
 import { getAiKey, loadConfig, saveConfig, setAiKey } from './store'
 
 const trackSchema = z
@@ -62,6 +62,8 @@ function handle<TArgs extends unknown[], TResult>(
     } catch (error) {
       const code = error instanceof NcmError ? error.code : 'UNKNOWN'
       const message = error instanceof Error ? error.message : String(error)
+      // 登录态失效时立刻让会话缓存过期，下次探测会自动纠正
+      if (code === 'UNAUTHORIZED') invalidateSession()
       console.error(`[ipc:${channel}]`, code, message)
       return { ok: false, code, message }
     }
@@ -74,7 +76,7 @@ function requireTrack(value: unknown): Track {
 
 export function registerIpc(): void {
   handle('env:check', () => checkEnv())
-  handle('session:status', () => getSession())
+  handle('session:status', (force?: boolean) => getSession(Boolean(force)))
   handle('session:save', (appId: string, privateKey: string) => setCredentials(appId, privateKey))
   handle('session:login-start', () => startLogin())
   handle('session:logout', async () => {

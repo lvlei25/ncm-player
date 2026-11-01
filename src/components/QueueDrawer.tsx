@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { ListMusic, Trash2, X } from 'lucide-react'
 import { artistsText, cn, formatDuration } from '../lib/format'
 import { useAppStore } from '../lib/store'
@@ -10,10 +11,17 @@ interface QueueDrawerProps {
 
 export function QueueDrawer({ open, onClose }: QueueDrawerProps) {
   const queue = useAppStore((s) => s.queue)
+  const queueLoaded = useAppStore((s) => s.queueLoaded)
   const playback = useAppStore((s) => s.playback)
+  const refreshQueue = useAppStore((s) => s.refreshQueue)
   const playQueue = useAppStore((s) => s.playQueue)
   const queueClear = useAppStore((s) => s.queueClear)
   const queueRemove = useAppStore((s) => s.queueRemove)
+
+  // 队列懒加载：抽屉第一次打开时才真正走一次 IPC
+  useEffect(() => {
+    if (open && !queueLoaded) void refreshQueue()
+  }, [open, queueLoaded, refreshQueue])
 
   if (!open) return null
 

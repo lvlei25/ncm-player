@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Music4 } from 'lucide-react'
 import type { LyricLine } from '../shared/types'
 import { api } from '../lib/api'
-import { activeIndex } from '../lib/lrc'
+import { activeIndex } from '../shared/lyric'
 import { cn } from '../lib/format'
 import { useAppStore } from '../lib/store'
 

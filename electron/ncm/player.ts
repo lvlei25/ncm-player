@@ -1,6 +1,6 @@
 import type { PlaybackState, PlaybackStatus, QueueSnapshot, Track } from '../../src/shared/types'
 import { loadConfig, saveConfig } from '../store'
-import { runCli } from './runner'
+import { cliQueue, runCli } from './runner'
 
 type Listener = (state: PlaybackState) => void
 
@@ -196,6 +196,8 @@ class Player {
   /** 轮询 `ncm-cli state`，驱动进度条与自动续播 */
   async refreshState(): Promise<void> {
     if (this.polling) return
+    // 用户操作优先：队列里还有任务时，本次心跳直接跳过而不是排队
+    if (cliQueue.busy) return
     this.polling = true
     try {
       const { json } = await runCli(['state'])
@@ -241,7 +243,7 @@ class Player {
     if (this.timer) return
     this.timer = setInterval(() => {
       void this.refreshState()
-    }, 1000)
+    }, 1500)
   }
 
   private stopTimerOnly(): void {

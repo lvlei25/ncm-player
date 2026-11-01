@@ -15,10 +15,12 @@ interface AppState {
   ready: boolean
   notice: Notice | null
   bootstrapped: boolean
+  /** 队列改为懒加载：首次打开抽屉时才真正走 IPC */
+  queueLoaded: boolean
 
   bootstrap: () => Promise<void>
   refreshEnv: () => Promise<void>
-  refreshSession: () => Promise<void>
+  refreshSession: (force?: boolean) => Promise<void>
   refreshQueue: () => Promise<void>
   setPlayback: (state: PlaybackState) => void
   notify: (notice: Notice | null) => void
@@ -55,29 +57,30 @@ export const useAppStore = create<AppState>((set, get) => ({
   ready: false,
   notice: null,
   bootstrapped: false,
+  queueLoaded: false,
 
   bootstrap: async () => {
     if (get().bootstrapped) return
     set({ bootstrapped: true })
 
-    const [sessionRes, stateRes, queueRes] = await Promise.all([
-      api.session.status(),
-      api.player.state(),
-      api.player.queue(),
-    ])
+    // 首屏只等「会话 + 播放态」两次轻量调用，队列留到真正要用时再拉
+    const [sessionRes, stateRes] = await Promise.all([api.session.status(), api.player.state()])
 
     set({
       session: sessionRes.ok ? sessionRes.data : null,
       playback: stateRes.ok ? stateRes.data : EMPTY_PLAYBACK,
-      queue: queueRes.ok ? queueRes.data : { tracks: [], currentIndex: -1 },
+      queue: { tracks: [], currentIndex: -1 },
       ready: true,
     })
 
     api.player.onState((state) => {
       set({ playback: state })
       const q = get().queue
-      if (q.tracks.length !== state.queueLength) void get().refreshQueue()
+      if (get().queueLoaded && q.tracks.length !== state.queueLength) void get().refreshQueue()
     })
+
+    // 冷启动时先用本地缓存渲染，真实探测结果回来后在这里更正
+    api.session.onChange((next) => set({ session: next }))
 
     // 环境探测较慢（要拉起 mpv / ncm-cli），放到后台补全，不阻塞首屏
     void get().refreshEnv()
@@ -88,14 +91,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ env: res.ok ? res.data : null })
   },
 
-  refreshSession: async () => {
-    const res = await api.session.status()
+  refreshSession: async (force = false) => {
+    const res = await api.session.status(force)
     set({ session: res.ok ? res.data : null })
   },
 
   refreshQueue: async () => {
     const res = await api.player.queue()
-    if (res.ok) set({ queue: res.data })
+    set({ queue: res.ok ? res.data : get().queue, queueLoaded: true })
   },
 
   setPlayback: (state) => set({ playback: state }),

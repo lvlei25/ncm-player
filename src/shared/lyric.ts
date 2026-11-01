@@ -1,6 +1,9 @@
-import type { LyricLine } from '../shared/types'
+import type { LyricLine } from './types'
 
-/** 二分查找当前行；歌词行由主进程解析好，这里只做定位 */
+/**
+ * 二分查找当前行下标。主进程与渲染层共用这一份实现，
+ * 避免两边各写一套时间轴定位逻辑。
+ */
 export function activeIndex(lines: LyricLine[], positionSec: number): number {
   if (lines.length === 0) return -1
   const ms = positionSec * 1000

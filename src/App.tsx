@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { Notice } from './components/Notice'
 import { PlayerBar } from './components/PlayerBar'
 import { QueueDrawer } from './components/QueueDrawer'
@@ -104,14 +105,16 @@ export default function App() {
         />
 
         <main className="min-w-0 flex-1 overflow-y-auto">
-          <Routes>
-            <Route path="/" element={<Discover />} />
-            <Route path="/search" element={<Search />} />
-            <Route path="/playlist/:id" element={<PlaylistDetail />} />
-            <Route path="/now" element={<NowPlaying />} />
-            <Route path="/setup" element={<Navigate to="/" replace />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<Discover />} />
+              <Route path="/search" element={<Search />} />
+              <Route path="/playlist/:id" element={<PlaylistDetail />} />
+              <Route path="/now" element={<NowPlaying />} />
+              <Route path="/setup" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </ErrorBoundary>
         </main>
 
         {location.pathname !== '/now' && (

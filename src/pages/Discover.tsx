@@ -18,12 +18,19 @@ export function Discover() {
   const nickname = useAppStore((s) => s.session?.nickname)
 
   useEffect(() => {
-    Promise.all([api.catalog.daily(), api.catalog.recommendPlaylists()])
-      .then(([dailyRes, playlistRes]) => {
-        if (dailyRes.ok) setDaily(dailyRes.data)
-        if (playlistRes.ok) setPlaylists(playlistRes.data)
-        const err = failureText(dailyRes) ?? failureText(playlistRes)
-        if (err) notify({ kind: 'error', text: err })
+    // CLI 调用是串行的：先取首屏最重要的「每日推荐」，歌单网格随后补上
+    api.catalog
+      .daily()
+      .then((res) => {
+        if (res.ok) setDaily(res.data)
+        else {
+          const err = failureText(res)
+          if (err) notify({ kind: 'error', text: err })
+        }
+        return api.catalog.recommendPlaylists()
+      })
+      .then((res) => {
+        if (res.ok) setPlaylists(res.data)
       })
       .catch((error) => console.error('[discover]', error))
       .finally(() => setLoading(false))

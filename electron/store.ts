@@ -11,6 +11,12 @@ export interface AppConfig {
   onboarded: boolean
   /** 上次播放的音量（0-100） */
   volume: number
+  /** 最近一次登录态，冷启动先渲染本地值，避免等 1.5s 的 user info */
+  nickname?: string
+  avatarUrl?: string
+  /** 上次探测到的登录状态，用于冷启动「先渲染后校验」 */
+  loggedIn?: boolean
+  configured?: boolean
   /** 播放模式 */
   playMode: 'order' | 'repeat-one' | 'shuffle'
   /** 运行期命令覆盖（能力 → argv） */

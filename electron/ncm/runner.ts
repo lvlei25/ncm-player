@@ -19,15 +19,23 @@ export class NcmError extends Error {
 /** 简单串行队列：播控命令必须按顺序下发，避免与 mpv 抢状态 */
 export class SerialQueue {
   private chain: Promise<unknown> = Promise.resolve()
+  private pendingCount = 0
+
+  /** 是否还有排队中的任务，供轮询类后台任务判断是否该让路 */
+  get busy(): boolean {
+    return this.pendingCount > 0
+  }
 
   run<T>(task: () => Promise<T>): Promise<T> {
-    const next = this.chain.then(task, task)
+    this.pendingCount += 1
+    const next = this.chain.then(task, task).finally(() => {
+      this.pendingCount -= 1
+    })
     this.chain = next.catch(() => undefined)
     return next
   }
 }
 
-export const playerQueue = new SerialQueue()
 /**
  * 所有 CLI 调用共用的串行队列。
  * 并行拉起多个 ncm-cli 进程会让刷新 token 的写操作互相覆盖，
@@ -97,8 +105,21 @@ export function execRaw(bin: string, args: string[], timeout = 8000): Promise<Ex
  * 执行 ncm-cli 子命令。
  * 命令树由服务端下发，参数一律以数组传递（不经过 shell），避免注入。
  */
-export function runCli(args: string[], options: RunOptions = {}): Promise<CliEnvelope> {
-  return cliQueue.run(() => execCli(args, options))
+export async function runCli(args: string[], options: RunOptions = {}): Promise<CliEnvelope> {
+  const startedAt = Date.now()
+  try {
+    const result = await cliQueue.run(() => execCli(args, options))
+    if (process.env.NCM_DEBUG === '1') {
+      console.log(`[cli] ${args.join(' ')} ${Date.now() - startedAt}ms`)
+    }
+    return result
+  } catch (error) {
+    if (process.env.NCM_DEBUG === '1') {
+      const message = error instanceof Error ? error.message : String(error)
+      console.error(`[cli] ${args.join(' ')} FAILED ${Date.now() - startedAt}ms ${message}`)
+    }
+    throw error
+  }
 }
 
 async function execCli(args: string[], options: RunOptions = {}): Promise<CliEnvelope> {
@@ -121,7 +142,8 @@ async function execCli(args: string[], options: RunOptions = {}): Promise<CliEnv
           reject(new NcmError('MISSING_CLI', '未找到 ncm-cli，请先安装：npm install -g @music163/ncm-cli'))
           return
         }
-        if (err && (err as NodeJS.ErrnoException).killed) {
+        // execFile 超时被杀时会在 error 上挂 killed 标记
+        if (err && (err as NodeJS.ErrnoException & { killed?: boolean }).killed) {
           reject(new NcmError('TIMEOUT', `ncm-cli ${args[0]} 执行超时`, stderr))
           return
         }

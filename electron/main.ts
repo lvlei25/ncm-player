@@ -2,11 +2,12 @@ import { app, BrowserWindow, globalShortcut, shell } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { registerIpc } from './ipc'
-import { ensurePlayerBackend } from './ncm/session'
+import { ensurePlayerBackend, setSessionListener } from './ncm/session'
 import { player } from './ncm/player'
 import { createTray, destroyTray } from './tray'
 
 const DEV_URL = process.env.NCM_DEV_SERVER
+const bootAt = Date.now()
 let mainWindow: BrowserWindow | null = null
 let quitting = false
 
@@ -58,7 +59,12 @@ function createWindow(): void {
     void mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
 
-  mainWindow.once('ready-to-show', () => mainWindow?.show())
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.show()
+    if (process.env.NCM_DEBUG === '1') {
+      console.log(`[boot] window ready ${Date.now() - bootAt}ms`)
+    }
+  })
 
   // 外链一律交给系统浏览器，应用内不开新窗口
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -113,6 +119,12 @@ if (!gotLock) {
     createTray(showWindow)
     registerMediaKeys()
     player.subscribe(broadcast)
+    // 后台会话探测完成后推给渲染层（冷启动时先用本地缓存渲染）
+    setSessionListener((session) => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) win.webContents.send('session:changed', session)
+      }
+    })
     await ensurePlayerBackend().catch(() => undefined)
   })
 

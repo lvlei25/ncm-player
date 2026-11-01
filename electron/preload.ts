@@ -25,9 +25,14 @@ const api = {
     check: () => invoke<EnvReport>('env:check'),
   },
   session: {
-    status: () => invoke<SessionStatus>('session:status'),
+    status: (force?: boolean) => invoke<SessionStatus>('session:status', force),
     save: (appId: string, privateKey: string) => invoke<boolean>('session:save', appId, privateKey),
     loginStart: () => invoke<LoginTicket>('session:login-start'),
+    onChange: (cb: (session: SessionStatus) => void) => {
+      const listener = (_e: unknown, session: SessionStatus) => cb(session)
+      ipcRenderer.on('session:changed', listener)
+      return () => ipcRenderer.removeListener('session:changed', listener)
+    },
     logout: () => invoke<boolean>('session:logout'),
   },
   catalog: {

@@ -69,21 +69,5 @@ function cleanEscapes(text: string): string {
   return text.includes('\\n') && !text.includes('\n') ? text.replace(/\\n/g, '\n') : text
 }
 
-/** 二分查找当前行下标 */
-export function activeLineIndex(lines: LyricLine[], positionSec: number): number {
-  if (lines.length === 0) return -1
-  const ms = positionSec * 1000
-  let lo = 0
-  let hi = lines.length - 1
-  let ans = -1
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1
-    if (lines[mid].timeMs <= ms) {
-      ans = mid
-      lo = mid + 1
-    } else {
-      hi = mid - 1
-    }
-  }
-  return ans
-}
+/** 时间轴定位已统一到 src/shared/lyric.ts，主进程直接复用 */
+export { activeIndex } from '../../src/shared/lyric'
