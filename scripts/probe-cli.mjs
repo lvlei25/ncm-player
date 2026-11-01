@@ -94,11 +94,11 @@ const md = [
 ].join('\n')
 
 fs.mkdirSync('docs', { recursive: true })
-fs.mkdirSync('resources', { recursive: true })
+fs.mkdirSync('docs', { recursive: true })
 fs.writeFileSync('docs/NCM-COMMANDS.md', md)
 fs.writeFileSync(
-  path.join('resources', 'command-tree.json'),
+  path.join('docs', 'command-tree.json'),
   JSON.stringify({ generatedAt, version, ...tree, help: details }, null, 2),
 )
 
-console.log(`已写入 docs/NCM-COMMANDS.md 与 resources/command-tree.json（${tree.top.length} 个顶层命令）`)
+console.log(`已写入 docs/NCM-COMMANDS.md 与 docs/command-tree.json（${tree.top.length} 个顶层命令）`)

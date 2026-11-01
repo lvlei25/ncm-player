@@ -62,6 +62,124 @@ node -v   # 需 ≥ 22.12
 > 安装 mpv 时若遇到 `udev 依赖 libudev1` 版本冲突，可执行
 > `sudo apt install -y --allow-downgrades libudev1=<udev 要求的版本> mpv`。
 
+## 使用说明
+
+### 1. 安装与启动
+
+```bash
+# 方式 A：deb 安装（推荐，会进应用列表、带图标）
+sudo dpkg -i release/ncm-player_1.0.0_amd64.deb
+sudo apt install -f          # 若提示缺少依赖
+
+# 方式 B：AppImage（免安装）
+chmod +x release/黑胶音乐-1.0.0.AppImage
+./release/黑胶音乐-1.0.0.AppImage
+
+# 方式 C：源码运行
+npm install && npm run dev
+```
+
+> deb 的 `Depends` 已声明 `mpv`，未装时 `apt` 会自动补齐。
+
+### 2. 首次启动向导
+
+窗口第一次打开会自动进入四步向导，顶部状态条显示当前进度：
+
+| 步骤 | 做什么 | 说明 |
+| --- | --- | --- |
+| ① 环境自检 | 检查 Node / ncm-cli / mpv | 缺什么就在该行右侧点「复制」，粘贴到终端执行，装完点「重新检测」 |
+| ② 开放平台凭证 | 填 appId + privateKey | 点「打开开放平台控制台」查看应用详情；也可在终端跑 `ncm-cli configure` |
+| ③ 扫码登录 | 点「生成登录链接」 | 浏览器会自动打开授权页，用网易云音乐 App 扫码；页面每 3 秒自动检测，成功后自动跳第 4 步 |
+| ④ 完成 | 点「进入播放器」 | 之后启动会直接进主界面，不再走向导 |
+
+凭证与登录态都保存在本机（`~/.config/ncm-cli`），应用自己不存私钥。
+
+### 3. 界面导览
+
+```
+┌───────────────────────────────────────────────────────────┐
+│ 标题栏：品牌 / 连接状态灯 / 最小化 最大化 关闭（关闭=缩到托盘） │
+├──────────┬──────────────────────────────┬─────────────────┤
+│ 左侧栏   │ 主内容区                     │ 右侧面板        │
+│ 发现     │ 发现 / 搜索 / 歌单详情       │ 歌词 | AI 点歌  │
+│ 搜索     │ / 全屏播放页                 │（可收起）       │
+│ 歌词     │                              │                 │
+│ AI 点歌  │                              │                 │
+│ 播放队列 │                              │                 │
+├──────────┴──────────────────────────────┴─────────────────┤
+│ 底部播放栏：封面 曲名 → 上一首/播放/下一首 → 进度 → 音量 → 队列 │
+└───────────────────────────────────────────────────────────┘
+```
+
+### 4. 日常操作
+
+| 想做的事 | 操作 |
+| --- | --- |
+| 播放某首歌 | 任意曲目行点击「▶」，或点行内「＋」先入队 |
+| 播放整张歌单 | 歌单详情页 → 「播放全部」 |
+| 加入队列 | 曲目行右侧「＋」；歌单页的「加入队列」一次加 20 首 |
+| 暂停 / 继续 | 底部播放栏中间大圆按钮，或空格以外的媒体键 |
+| 切歌 | 底部「⏮ / ⏭」 |
+| 拖进度 | 直接拖动底部进度条，松手生效（进度条上会显示时间气泡） |
+| 调音量 | 右下角滑块；点喇叭图标可一键静音 / 恢复 |
+| 看队列 | 左侧「播放队列」或播放栏右侧队列按钮，抽屉里可点任意一首跳播、点「×」移除、右上角「清空」 |
+| 看歌词 | 左侧「歌词」或播放栏的麦克风图标；点击任一行歌词可跳转到该时间点 |
+| 全屏播放页 | 点击播放栏左侧的圆形封面 |
+| 托盘 | 关闭窗口只是缩到托盘；托盘右键可播放/暂停、上下一首、显示窗口、退出 |
+
+**全局媒体键**支持 `MediaPlayPause` / `MediaNextTrack` / `MediaPreviousTrack`，
+若被桌面环境占用会在日志里提示。
+
+### 5. AI 点歌
+
+右侧面板切到「AI 点歌」，直接说人话：
+
+- 「放点适合写代码的歌」「来点林俊杰」
+- 「音量 40」「下一首」「暂停」「今天听什么」
+
+**未配置模型**时使用本地规则解析，上面这些都能用；
+配置模型后可理解更复杂的表达。点面板右上角齿轮填 `baseUrl / model / apiKey`，
+兼容 DeepSeek、通义、Ollama 等 OpenAI 格式接口，Key 用系统钥匙串加密后存本机。
+
+每次执行的工具调用会在气泡下方逐步列出（成功绿勾 / 失败红叉），不是黑盒。
+
+### 6. 常见问题
+
+| 现象 | 原因与处理 |
+| --- | --- |
+| 提示「尚未配置开放平台凭证」 | 在向导第 ② 步填 appId/privateKey，或终端 `ncm-cli configure` |
+| 提示「登录已失效」 | 向导第 ③ 步重新扫码；应用会自动让会话缓存失效 |
+| 提示「请求总量超限」 | 开放平台每日调用配额用尽，等次日或去控制台查看剩余次数 |
+| 没有声音 | 确认 `mpv --version` 可用；`ncm-cli config get player` 应为 `mpv` |
+| 进度条偶尔跳一下 | 进度来自 `ncm-cli state` 的 1.5 s 轮询（CLI 无推送能力），属预期 |
+| `configure` 报 `ERR_REQUIRE_ESM` | Node < 22.12，见上文「环境要求」升级 |
+| 装在 dock 里图标没变 | 卸载重装 deb（图标已内嵌），或用 `gtk-update-icon-cache` 刷新缓存 |
+
+## 项目结构
+
+```
+ncm-player/
+├── electron/                主进程
+│   ├── main.ts              窗口 / 单实例 / 托盘 / 媒体键 / 状态广播
+│   ├── preload.ts           contextBridge 白名单 API
+│   ├── ipc.ts               channel → handler，zod 校验
+│   ├── store.ts             本地配置（AI Key 走 safeStorage）
+│   ├── tray.ts              托盘菜单
+│   ├── ncm/                 ncm-cli 适配层（runner / discovery / command-map /
+│   │                        normalize / catalog / player / lyric / session）
+│   └── ai/                  AI 点歌（tools 工具集 / local 本地兜底 / service 编排）
+├── src/                     渲染层
+│   ├── components/          通用组件 + setup/ 向导步骤
+│   ├── pages/               发现 / 搜索 / 歌单详情 / 全屏播放 / 向导
+│   ├── lib/                 api 桥接 / zustand 状态 / 格式化 / mock 预览
+│   └── shared/              主进程与渲染层共享的类型与纯函数
+├── spec/                    规格与变更记录（先改规格再改代码）
+├── docs/                    ncm-cli 命令树快照（probe-cli.mjs 产出）
+├── scripts/                 主进程打包、命令树探针、图标生成
+├── build/                   应用图标（打包资源）
+└── 配置：vite / tailwind / postcss / tsconfig.* / electron-builder.yml
+```
+
 ## 开发
 
 ```bash
@@ -80,9 +198,11 @@ npm run dist       # 打包 deb + AppImage 到 release/
 
 本轮迭代按 spec 驱动，规格文档在 `spec/`：
 
+- `spec/README.md` — 规格索引与**变更记录规则**（任何改动都必须先落规格、再落代码）
 - `spec/requirements.md` — 实测基线（每条 CLI 调用耗时）、7 条可验收需求、验收结果对比
 - `spec/design.md` — 缓存、懒加载、轮询让路的取舍与风险
 - `spec/tasks.md` — 11 项任务与逐项实测数据
+- `spec/changelog.md` — 全部变更记录（新增 / 修改 / 删除）
 
 关键数字：
 
@@ -129,7 +249,7 @@ ncm-cli 的命令树**由服务端动态下发**：启动时上报本地命令�
 3. 全部落空时在 UI 隐藏入口，而不是让用户点了没反应；
 4. 需要时可用 `~/.config/ncm-player/ncm-player.json` 的 `commandOverrides` 直接覆盖某个能力的 argv。
 
-`docs/NCM-COMMANDS.md` 与 `resources/command-tree.json` 是本机实测快照，可用
+`docs/NCM-COMMANDS.md` 与 `docs/command-tree.json` 是本机实测快照，可用
 `node scripts/probe-cli.mjs` 随时重新采集（换账号或 CLI 升级后建议重跑）。
 
 ## 安全设计
