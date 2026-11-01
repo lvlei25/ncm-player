@@ -86,6 +86,10 @@
 | TC-M03 | — | 直接跑 AppImage | 免安装启动，行为与 deb 一致 | P1 | ⬜ |
 | TC-M04 | 已启动一次 | 再次双击图标 | 不产生第二个窗口（单实例锁），已存在窗口前置 | P1 | ⬜ |
 | TC-M05 | 已登录 | `NCM_DEBUG=1 npm run dev` | 日志出现 `[boot] window ready <500ms` | P2 | ✅ |
+| TC-M06 | 已装 deb | 从应用列表点击图标启动（**不带** `--no-sandbox`） | 正常启动，无 `setuid_sandbox_host` FATAL | P0 | ✅ v0.6.1 修复后 |
+| TC-M07 | `chrome-sandbox` 权限 | `ls -l "/opt/黑胶音乐/chrome-sandbox"` | `-rwsr-xr-x root root` | P0 | ✅ |
+| TC-M08 | 已启动 | `xprop WM_CLASS` 与 `.desktop` 的 `StartupWMClass` | 两者一致（均为 `ncm-player`），dock 不出现重复条目 | P1 | ✅ |
+| TC-M09 | 已装 deb | 检查包内 `.desktop` 字段 | `Icon=ncm-player`、`Categories=AudioVideo;`、`Depends: mpv` | P1 | ✅ |
 
 ### B2 首次启动向导
 
@@ -209,3 +213,4 @@
 | 日期 | 版本 | 自动化 | 手工 P0 | 备注 |
 | --- | --- | --- | --- | --- |
 | 2026-11-01 | v0.6.0 | 46/46 ✅ | 12/14 通过，2 项未执行（TC-M03 AppImage、TC-M10 无 mpv 场景） | 托盘相关整体待人工验收 |
+| 2026-11-01 | v0.6.1 | 46/46 ✅ | deb 安装→应用列表启动→真实数据全链路通过（TC-M01/02/06/07/08/09） | 发现并修复 2 个仅存在于打包产物的缺陷，详见 changelog |

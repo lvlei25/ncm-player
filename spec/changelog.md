@@ -2,6 +2,44 @@
 
 倒序记录，最新在最上。每条包含：变更内容 / 原因 / 影响文件 / 验证方式。
 
+## v0.6.1 — 2026-11-01 deb 实机验收与两处修复
+
+**背景**：实际安装 `release/ncm-player_1.0.0_amd64.deb` 并按「应用列表 → 点击图标」的真实路径启动，
+发现两个只在打包产物里出现的缺陷。
+
+**缺陷 1：从应用列表启动直接崩溃（P0）**
+
+```
+FATAL:setuid_sandbox_host.cc(163) The SUID sandbox helper binary was found,
+but is not configured correctly ... You need to make sure that
+/opt/黑胶音乐/chrome-sandbox is owned by root and has mode 4755.
+```
+
+- 原因：electron-builder 打出的 deb 里 `chrome-sandbox` 权限为 `755`，
+  而 Ubuntu 24.04 限制了 unprivileged user namespace，Chromium 无法降级，直接 abort。
+- 修复：新增 `build/postinst.sh`，安装后 `chown root:root` + `chmod 4755`；
+  `electron-builder.yml` 增加 `deb.afterInstall`。
+- 验证：重装后 `-rwsr-xr-x root root`，`gtk-launch ncm-player`（不带 `--no-sandbox`）正常启动。
+
+**缺陷 2：dock 图标关联不上（P1）**
+
+- 现象：`.desktop` 里 `StartupWMClass=黑胶音乐`，而实测窗口 `WM_CLASS` 为 `ncm-player`（可执行文件名），
+  桌面环境会认为这是两个不同应用，导致 dock 出现重复条目 / 图标不显示。
+- 修复：`electron-builder.yml` 的 `linux.desktop.StartupWMClass: ncm-player`（注意必须写成扁平键，
+  写成 `desktop.entry.StartupWMClass` 不生效——已实测）。
+- 验证：包内 `.desktop` 的 `StartupWMClass` 与 `xprop WM_CLASS` 一致。
+
+**顺带确认**
+
+- 窗口标题栏状态灯显示「NCM-CLI 已连接」（绿色）
+- 每日推荐 30 首、推荐歌单 7 个、昵称、封面全部真实加载
+- 托盘图标出现在 GNOME 顶栏
+- `Depends: mpv`、`Recommends: libappindicator3-1` 正确写入
+
+**影响文件**
+
+`build/postinst.sh`（新增）、`electron-builder.yml`、`docs/test-cases.md`、`spec/*`
+
 ## v0.6.0 — 2026-11-01 测试体系
 
 **变更**

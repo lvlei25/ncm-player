@@ -154,6 +154,7 @@ npm install && npm run dev
 | 进度条偶尔跳一下 | 进度来自 `ncm-cli state` 的 1.5 s 轮询（CLI 无推送能力），属预期 |
 | `configure` 报 `ERR_REQUIRE_ESM` | Node < 22.12，见上文「环境要求」升级 |
 | 装在 dock 里图标没变 | 卸载重装 deb（图标已内嵌），或用 `gtk-update-icon-cache` 刷新缓存 |
+| 从应用列表启动闪退，日志有 `setuid_sandbox_host` | 旧版包的 `chrome-sandbox` 权限不对，手动修：`sudo chown root:root "/opt/黑胶音乐/chrome-sandbox" && sudo chmod 4755 "/opt/黑胶音乐/chrome-sandbox"`（v0.6.1 起由安装脚本自动处理） |
 
 ## 项目结构
 

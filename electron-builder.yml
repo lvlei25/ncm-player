@@ -23,9 +23,15 @@ linux:
   category: AudioVideo
   # 多尺寸目录：GNOME dock / Wayland 会按实际 DPI 取用最合适的一档
   icon: build/icons
+  executableName: ncm-player
+  desktop:
+    # 实测窗口 WM_CLASS 为可执行文件名，必须与之对齐，否则 dock 会另起一个无图标的条目
+    StartupWMClass: ncm-player
   maintainer: ncm-player
   synopsis: 网易云音乐桌面播放器
   description: 基于 ncm-cli 的网易云音乐桌面播放器，支持搜索、歌单、歌词与 AI 点歌。
 deb:
   depends:
     - mpv
+  # 安装后修正 chrome-sandbox 的 SUID 权限，否则从应用列表启动会直接崩溃
+  afterInstall: build/postinst.sh
