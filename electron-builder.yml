@@ -8,6 +8,9 @@ files:
   - dist/**
   - dist-electron/**
   - package.json
+  # 渲染层与主进程都已打包成单文件，运行期不需要任何 node_modules
+  - "!node_modules/**"
+  - "!**/*.map"
 extraResources:
   - from: build/icon.png
     to: icon.png
