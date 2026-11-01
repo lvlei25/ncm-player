@@ -2,6 +2,32 @@
 
 倒序记录，最新在最上。每条包含：变更内容 / 原因 / 影响文件 / 验证方式。
 
+## v0.6.0 — 2026-11-01 测试体系
+
+**变更**
+
+- 新增 `spec/testing.md`：分层策略（L1 类型/构建 → L4 手工回归）、门禁、缺陷分级、已知测试债
+- 新增 `docs/test-cases.md`：46 条自动化用例 + 约 60 条手工用例，含优先级的执行记录
+- 新增 `test/` 目录：`fixtures.ts`（真实 CLI 输出夹具）、`stubs/electron.ts`（electron 替身）
+- 4 个测试文件：`normalize.spec.ts`(11) / `lyric.spec.ts`(11) / `command-map.spec.ts`(13) / `format.spec.ts`(11)
+- 新增 `vitest.config.ts`，通过 alias 把 `electron` 指向替身，使主进程纯逻辑可在 node 下测试
+- `package.json` 增加 `test` / `test:watch` / `test:coverage` 脚本与 `vitest` 开发依赖
+- **修复缺陷**：`discovery.specExists` 对子命令的判定过于宽松（父命令存在即视为存在），
+  会导致调用不存在的 `search artist` 而静默失败；现改为精确匹配父子路径
+
+**原因**
+
+核心风险在「外部 CLI 的输出结构与命令树会变」，而此前没有任何自动化验证；
+同时按 spec 流程要求，测试也需要有规格与用例文档。
+
+**影响文件**
+
+`test/**`、`vitest.config.ts`、`package.json`、`electron/ncm/discovery.ts`、`spec/*`、`docs/test-cases.md`
+
+**验证**
+
+`npm test` 46/46 通过；`npx tsc -b` 零错误；修复点由 TC-A26 回归覆盖。
+
 ## v0.5.0 — 2026-11-01 结构整理与操作文档
 
 **变更**

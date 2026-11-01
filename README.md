@@ -173,8 +173,9 @@ ncm-player/
 │   ├── pages/               发现 / 搜索 / 歌单详情 / 全屏播放 / 向导
 │   ├── lib/                 api 桥接 / zustand 状态 / 格式化 / mock 预览
 │   └── shared/              主进程与渲染层共享的类型与纯函数
-├── spec/                    规格与变更记录（先改规格再改代码）
-├── docs/                    ncm-cli 命令树快照（probe-cli.mjs 产出）
+├── spec/                    规格与变更记录（先改规格再改代码）+ 测试策略
+├── docs/                    ncm-cli 命令树快照、测试用例清单
+├── test/                    单元测试（vitest）与 CLI 输出夹具
 ├── scripts/                 主进程打包、命令树探针、图标生成
 ├── build/                   应用图标（打包资源）
 └── 配置：vite / tailwind / postcss / tsconfig.* / electron-builder.yml
@@ -185,6 +186,7 @@ ncm-player/
 ```bash
 npm install
 
+npm test           # 单元测试（46 例，vitest）
 npm run dev        # Electron 桌面开发模式（自动构建主进程 + Vite HMR）
 npm run dev:web    # 纯浏览器预览（自动降级为 mock 数据，便于调 UI）
 npm run build      # 构建渲染层与主进程
@@ -203,6 +205,8 @@ npm run dist       # 打包 deb + AppImage 到 release/
 - `spec/design.md` — 缓存、懒加载、轮询让路的取舍与风险
 - `spec/tasks.md` — 11 项任务与逐项实测数据
 - `spec/changelog.md` — 全部变更记录（新增 / 修改 / 删除）
+- `spec/testing.md` — 测试分层、门禁、缺陷分级
+- `docs/test-cases.md` — 46 条自动化用例 + 60 条手工用例（含优先级与执行记录）
 
 关键数字：
 

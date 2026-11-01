@@ -82,6 +82,37 @@
 - [x] `dev:web` mock 预览回归正常
 - [x] 提交并推送
 
+---
+
+# v0.6.0 测试体系
+
+## T12 测试基础设施 ✅
+
+- [x] 安装 `vitest`，新增 `vitest.config.ts`（`electron` 走 `test/stubs/electron.ts` 替身）
+- [x] `test/fixtures.ts`：真实 CLI 输出夹具（搜索 / 雷达歌单 / 嵌套陷阱 / LRC）
+- [x] `package.json` 增加 `test`、`test:watch`、`test:coverage`
+
+## T13 自动化用例 ✅
+
+- [x] `normalize.spec.ts` 11 例
+- [x] `lyric.spec.ts` 11 例
+- [x] `command-map.spec.ts` 13 例
+- [x] `format.spec.ts` 11 例
+
+验收：`npm test` **46/46 通过**（776 ms）。
+
+## T14 缺陷回归 ✅
+
+- [x] 发现并修复 `specExists` 子命令判定过宽（父命令存在即通过）
+- [x] 补 TC-A26 作为回归用例
+
+## T15 文档 ✅
+
+- [x] `spec/testing.md`（策略 / 分层 / 门禁 / 缺陷分级 / 测试债）
+- [x] `docs/test-cases.md`（46 自动化 + 60 手工用例 + 执行记录）
+- [x] `spec/requirements.md` 追加 R8
+- [x] README 增加测试命令与文档入口
+
 ## 后续可做（未在本轮）
 
 - `recommend daily` 单次 1.5 s 属网络耗时，可考虑首屏用上次的每日推荐做「立即渲染 + 静默刷新」

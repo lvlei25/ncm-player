@@ -56,7 +56,8 @@ export function specExists(spec: CommandSpec, tree: CommandTree): boolean {
   const words = spec.argv.filter((t) => !t.startsWith('--') && !t.startsWith('{'))
   if (words.length === 0) return false
   if (words.length === 1) return tree.top.includes(words[0])
-  return tree.paths.includes(`${words[0]} ${words[1]}`) || tree.top.includes(words[0])
+  // 子命令必须精确命中：父命令存在不代表子命令存在（如 recommend 有 daily 但没有 playlist）
+  return tree.paths.includes(`${words[0]} ${words[1]}`)
 }
 
 export interface ResolvedCommand {
