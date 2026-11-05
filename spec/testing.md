@@ -21,7 +21,7 @@
 └─ L1 类型与构建（tsc -b + vite build）        编译期门禁
 ```
 
-### L2 覆盖范围（自动化，46 例）
+### L2 覆盖范围（自动化，54 例）
 
 | 文件 | 被测对象 | 用例数 |
 | --- | --- | --- |
@@ -29,6 +29,7 @@
 | `test/lyric.spec.ts` | `electron/ncm/lyric.ts` + `src/shared/lyric.ts` 解析、翻译对齐、当前行定位 | 11 |
 | `test/command-map.spec.ts` | `command-map.ts` / `discovery.ts` 命令树解析、候选回退、能力矩阵 | 13 |
 | `test/format.spec.ts` | `src/lib/format.ts` 时长/计数/取色/类名合并 | 11 |
+| `test/cli-bin.spec.ts` | `cli-bin.ts` GUI 会话 PATH 回落、npm prefix、NCM_CLI_BIN 优先、真实执行 | 8 |
 
 测试夹具 `test/fixtures.ts` 全部来自 **2026-11-01 真实 CLI 输出**（脱敏），
 不是照文档脑补的 schema——这正是本项目最容易出问题的地方。
@@ -61,7 +62,7 @@ NCM_DEBUG=1 npm run dev
 
 必须同时满足：
 
-1. `npm test` 全绿（46/46）
+1. `npm test` 全绿（54/54）
 2. `npx tsc -b` 零错误（含 `tsconfig.electron.json`）
 3. `npm run build` 成功
 4. 涉及 UI 的改动：`dev:web` 截图回归

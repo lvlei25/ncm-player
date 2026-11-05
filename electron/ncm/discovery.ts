@@ -1,9 +1,8 @@
 import { loadConfig } from '../store'
+import { cliBin } from './cli-bin'
 import { CAPABILITY_COMMANDS, fillTemplate } from './command-map'
 import type { CapabilityId, CommandSpec } from './command-map'
 import { execRaw } from './runner'
-
-const CLI_BIN = process.env.NCM_CLI_BIN || 'ncm-cli'
 
 export interface CommandTree {
   /** 顶层命令名 */
@@ -41,7 +40,7 @@ export function parseCommandTree(raw: string): CommandTree {
 
 export async function getCommandTree(force = false): Promise<CommandTree> {
   if (cache && !force && Date.now() - cache.fetchedAt < 60_000) return cache
-  const res = await execRaw(CLI_BIN, ['commands'], 15000)
+  const res = await execRaw(cliBin(), ['commands'], 15000)
   const text = `${res.stdout}\n${res.stderr}`
   cache = parseCommandTree(text)
   return cache

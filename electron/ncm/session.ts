@@ -1,8 +1,8 @@
 import type { EnvReport, LoginTicket, SessionStatus } from '../../src/shared/types'
 import { loadConfig, saveConfig } from '../store'
+import { cliBin } from './cli-bin'
 import { execRaw, NcmError, runCli } from './runner'
 
-const CLI_BIN = process.env.NCM_CLI_BIN || 'ncm-cli'
 const URL_RE = /https?:\/\/[^\s"'<>）)]+/
 
 /** 会话探测很贵（config list + login --check + user info ≈ 3.6s），缓存 60s */
@@ -28,7 +28,7 @@ export function setSessionListener(cb: (value: SessionStatus) => void): void {
 
 /** 读取 `ncm-cli config list` 的文本输出，判断凭证是否齐备 */
 async function readConfig(): Promise<Record<string, string>> {
-  const res = await execRaw(CLI_BIN, ['config', 'list'], 12000)
+  const res = await execRaw(cliBin(), ['config', 'list'], 12000)
   const out: Record<string, string> = {}
   for (const line of `${res.stdout}`.split(/\r?\n/)) {
     const m = line.match(/^([\w.]+):\s*(.*)$/)
@@ -52,7 +52,7 @@ function safeParse(text: string): Record<string, unknown> | null {
 
 /** 昵称与头像：优先取 user info，失败时回落到本地缓存 */
 async function fetchProfile(): Promise<{ nickname?: string; avatarUrl?: string }> {
-  const res = await execRaw(CLI_BIN, ['user', 'info', '--output', 'json'], 8000)
+  const res = await execRaw(cliBin(), ['user', 'info', '--output', 'json'], 8000)
   const text = `${res.stdout}${res.stderr}`
   const info = text.includes('{') ? safeParse(text) : null
   const data = (info?.data ?? info) as Record<string, unknown> | null
@@ -79,7 +79,7 @@ async function probeSession(fresh = false): Promise<SessionStatus> {
     return value
   }
 
-  const checkRes = await execRaw(CLI_BIN, ['login', '--check', '--output', 'json'], 6000)
+  const checkRes = await execRaw(cliBin(), ['login', '--check', '--output', 'json'], 6000)
   const text = `${checkRes.stdout}${checkRes.stderr}`
   const parsed = text.includes('{') ? safeParse(text) : null
   const loggedIn = Boolean(parsed && parsed.success === true)
@@ -145,7 +145,7 @@ export async function getSession(force = false): Promise<SessionStatus> {
 /** 环境自检只做本地探测，登录态直接读会话缓存 */
 export async function checkEnv(): Promise<EnvReport> {
   const [cli, mpv, node] = await Promise.all([
-    execRaw(CLI_BIN, ['--version'], 10000),
+    execRaw(cliBin(), ['--version'], 10000),
     execRaw('mpv', ['--version'], 8000),
     // 必须看「系统 node」：ncm-cli 的 shebang 是 /usr/bin/env node，与 Electron 内置 node 无关
     execRaw('node', ['--version'], 8000),

@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import type { NcmErrorCode } from '../../src/shared/types'
+import { cliBin } from './cli-bin'
 
-const CLI_BIN = process.env.NCM_CLI_BIN || 'ncm-cli'
 const DEFAULT_TIMEOUT = 25000
 
 export class NcmError extends Error {
@@ -128,7 +128,7 @@ async function execCli(args: string[], options: RunOptions = {}): Promise<CliEnv
 
   const result = await new Promise<ExecResult>((resolve, reject) => {
     execFile(
-      CLI_BIN,
+      cliBin(),
       argv,
       {
         timeout,
@@ -177,7 +177,7 @@ async function execCli(args: string[], options: RunOptions = {}): Promise<CliEnv
 
 /** 检查某条命令是否存在于当前命令树 */
 export async function commandExists(argv: string[]): Promise<boolean> {
-  const res = await execRaw(CLI_BIN, [...argv, '--help'])
+  const res = await execRaw(cliBin(), [...argv, '--help'])
   const text = `${res.stdout}${res.stderr}`
   if (/unknown command/i.test(text)) return false
   return /usage:/i.test(text)
