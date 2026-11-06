@@ -251,6 +251,40 @@ class Player {
     console.error('[player]', message)
   }
 
+  /** 避免多个心跳同时重建队列 */
+  private syncing = false
+
+  /** 从 CLI 队列重建镜像：queue 命令只给标题，加密 ID 由 CLI 队列缓存补齐 */
+  private async syncQueueFromCli(): Promise<void> {
+    const { json: queueJson } = await runCli(['queue'])
+    const rows: Array<{ label?: string; current?: boolean }> = Array.isArray(queueJson?.queue)
+      ? (queueJson?.queue as Array<{ label?: string; current?: boolean }>)
+      : []
+    const cached = readCliQueueItems()
+    this.tracks = rows.map((row, i) => {
+      const label = typeof row.label === 'string' ? row.label : ''
+      const [name, ...artists] = label.split(' - ')
+      const meta = cached.find((item) => item.title === label)
+      return {
+        id: meta?.encryptedId ?? '',
+        originalId: meta?.originalId !== undefined ? String(meta.originalId) : undefined,
+        name: name || label || `曲目 ${i + 1}`,
+        artists: artists.length ? [artists.join(' - ')] : [],
+        album: '',
+        durationMs: meta?.duration ? Math.round(meta.duration * 1000) : 0,
+        playable: true,
+      } satisfies Track
+    })
+    const current = rows.findIndex((row) => row.current)
+    this.index = current >= 0 ? current : 0
+    this.persistQueue()
+  }
+
+  /** 从 CLI 的 `title` 里取出歌名（格式：歌名 - 歌手） */
+  private static titleName(title: string): string {
+    return title.split(' - ')[0].trim()
+  }
+
   /**
    * 冷启动同步 CLI 真实播放态。mpv 是独立进程，应用重启时可能仍在播放；
    * 内存队列镜像为空时从 CLI 队列恢复，加密 ID 由 CLI 队列缓存补齐，
@@ -273,31 +307,13 @@ class Player {
       this.status = mapped
 
       if (this.tracks.length === 0 && Number(state.queueLength ?? 0) > 0) {
-        const { json: queueJson } = await runCli(['queue'])
-        const rows: Array<{ label?: string; current?: boolean }> = Array.isArray(queueJson?.queue)
-          ? (queueJson?.queue as Array<{ label?: string; current?: boolean }>)
-          : []
-        const cached = readCliQueueItems()
-        this.tracks = rows.map((row, i) => {
-          const label = typeof row.label === 'string' ? row.label : ''
-          const [name, ...artists] = label.split(' - ')
-          const meta = cached.find((item) => item.title === label)
-          return {
-            id: meta?.encryptedId ?? '',
-            originalId: meta?.originalId !== undefined ? String(meta.originalId) : undefined,
-            name: name || label || `曲目 ${i + 1}`,
-            artists: artists.length ? [artists.join(' - ')] : [],
-            album: '',
-            durationMs: meta?.duration ? Math.round(meta.duration * 1000) : 0,
-            playable: true,
-          } satisfies Track
-        })
-        const current = rows.findIndex((row) => row.current)
-        this.index = current >= 0 ? current : 0
-        this.persistQueue()
+        await this.syncQueueFromCli()
       }
 
-      if (typeof state.currentIndex === 'number' && state.currentIndex >= 0 && state.currentIndex < this.tracks.length) {
+      const cliName = Player.titleName(typeof state.title === 'string' ? state.title : '')
+      const matched = cliName ? this.tracks.findIndex((t) => t.name === cliName) : -1
+      if (matched >= 0) this.index = matched
+      else if (typeof state.currentIndex === 'number' && state.currentIndex >= 0 && state.currentIndex < this.tracks.length) {
         this.index = state.currentIndex
       }
 
@@ -326,19 +342,48 @@ class Player {
       const rawPos = typeof state.position === 'number' ? state.position : Number(state.position ?? 0)
       const posSec = rawPos > 100_000 ? rawPos / 1000 : rawPos
       const rawVol = typeof state.volume === 'number' ? state.volume : null
+      const rawDuration = typeof state.duration === 'number' ? state.duration : Number(state.duration ?? 0)
 
       const inGrace = Date.now() - this.startedAt < 4000
 
       if (Number.isFinite(posSec)) this.position = Math.max(0, posSec)
       if (rawVol !== null) this.volume = rawVol
       if (this.status !== mapped && !(inGrace && this.status === 'playing')) this.status = mapped
-      if (this.duration === 0 && this.current()) this.duration = this.current()!.durationMs / 1000
+
+      // CLI 可能自己切歌（放完自动续播、外部 next、队列驱动）：用真实标题校正当前曲目，
+      // 否则全屏播放页的标题/封面/歌词会一直停在上一首。
+      const cliName = Player.titleName(typeof state.title === 'string' ? state.title : '')
+      let trackChanged = false
+      let needsQueueSync = false
+      if (cliName && this.tracks.length > 0) {
+        const matched = this.tracks.findIndex((t) => t.name === cliName)
+        if (matched >= 0 && matched !== this.index) {
+          this.index = matched
+          this.persistQueue()
+          trackChanged = true
+        } else if (matched < 0) {
+          needsQueueSync = true
+        }
+      }
+
+      if (Number.isFinite(rawDuration) && rawDuration > 0) this.duration = rawDuration
+      else if (this.current()) this.duration = this.current()!.durationMs / 1000
+
+      if (needsQueueSync && !this.syncing) {
+        this.syncing = true
+        void this.syncQueueFromCli()
+          .then(() => this.emit())
+          .catch(() => undefined)
+          .finally(() => {
+            this.syncing = false
+          })
+      }
 
       if (mapped !== 'playing' && !inGrace) this.stopTimerOnly()
       this.emit()
 
-      // 自动续播
-      if (mapped === 'playing' && this.duration > 0 && this.position >= this.duration - 1.2 && !this.advancing) {
+      // 自动续播：CLI 已切歌时不再重复下发 play
+      if (mapped === 'playing' && !trackChanged && !needsQueueSync && this.duration > 0 && this.position >= this.duration - 1.2 && !this.advancing) {
         this.advancing = true
         await this.step(1)
         this.advancing = false

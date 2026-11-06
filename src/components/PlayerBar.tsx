@@ -17,6 +17,7 @@ export function PlayerBar({ onOpenQueue, onOpenLyric, activeLyric }: PlayerBarPr
   const navigate = useNavigate()
   const [dragging, setDragging] = useState<number | null>(null)
   const [liked, setLiked] = useState(false)
+  const [volumeHover, setVolumeHover] = useState(false)
 
   const duration = playback.duration || (playback.current ? playback.current.durationMs / 1000 : 0)
   const position = dragging ?? playback.position
@@ -164,26 +165,49 @@ export function PlayerBar({ onOpenQueue, onOpenLyric, activeLyric }: PlayerBarPr
           </div>
         </div>
 
-        {/* 音量与面板 */}
+        {/* 音量与面板：悬浮展开滑块，滚轮微调 */}
         <div className="flex flex-1 items-center justify-end gap-3">
-          <button
-            type="button"
-            aria-label="静音"
-            onClick={() => void setVolume(volume === 0 ? 60 : 0)}
-            className="text-cloud-500 transition hover:text-cloud-100"
+          <div
+            className="relative flex items-center gap-2"
+            onMouseEnter={() => setVolumeHover(true)}
+            onMouseLeave={() => setVolumeHover(false)}
+            onWheel={(event) => {
+              const delta = event.deltaY < 0 ? 5 : -5
+              void setVolume(Math.max(0, Math.min(100, volume + delta)))
+            }}
+            title="鼠标悬浮展开音量，滚轮可微调"
           >
-            {volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={1}
-            value={volume}
-            aria-label="音量"
-            onChange={(e) => void setVolume(Number(e.target.value))}
-            className="slider w-24"
-          />
+            <button
+              type="button"
+              aria-label="静音"
+              onClick={() => void setVolume(volume === 0 ? 60 : 0)}
+              className="text-cloud-500 transition hover:text-cloud-100"
+            >
+              {volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </button>
+            <div
+              className={cn(
+                'overflow-hidden transition-[width,opacity] duration-200',
+                volumeHover ? 'w-24 opacity-100' : 'pointer-events-none w-0 opacity-0',
+              )}
+            >
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={volume}
+                aria-label="音量"
+                onChange={(e) => void setVolume(Number(e.target.value))}
+                className="slider w-24"
+              />
+            </div>
+            {volumeHover && (
+              <span className="pointer-events-none absolute -top-8 right-0 rounded-md bg-ink-700 px-2 py-1 text-[10px] tabular-nums text-cloud-100 shadow-lg">
+                {volume}%
+              </span>
+            )}
+          </div>
           <button
             type="button"
             aria-label="播放队列"

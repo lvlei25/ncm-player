@@ -90,11 +90,11 @@ input[type='range'].slider {
 input[type='range'].slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #ec4141;
-  box-shadow: 0 0 0 4px rgba(236, 65, 65, 0.18);
+  box-shadow: 0 0 0 2px rgba(236, 65, 65, 0.18);
   transition: transform 160ms ease;
 }
 
@@ -103,8 +103,8 @@ input[type='range'].slider:hover::-webkit-slider-thumb {
 }
 
 input[type='range'].slider::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
   border: none;
   border-radius: 50%;
   background: #ec4141;
