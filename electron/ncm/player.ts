@@ -1,8 +1,29 @@
 import type { PlaybackState, PlaybackStatus, QueueSnapshot, Track } from '../../src/shared/types'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { loadConfig, saveConfig } from '../store'
 import { cliQueue, runCli } from './runner'
 
 type Listener = (state: PlaybackState) => void
+
+interface CliQueueItem {
+  title?: string
+  encryptedId?: string
+  originalId?: number | string
+  duration?: number
+}
+
+/** CLI 的 queue 命令只给标题，跳播需要加密 ID；尽力从 CLI 自己的队列缓存补齐 */
+function readCliQueueItems(): CliQueueItem[] {
+  try {
+    const file = path.join(os.homedir(), '.config', 'ncm-cli', 'queue.json')
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as { items?: CliQueueItem[] }
+    return Array.isArray(parsed.items) ? parsed.items : []
+  } catch {
+    return []
+  }
+}
 
 /** 一阶段：完全遥控 ncm-cli 内置 mpv 后端；本地维护队列镜像用于 UI 与自动续播 */
 class Player {
@@ -19,6 +40,21 @@ class Player {
   private volumeTimer: NodeJS.Timeout | null = null
   /** 刚下发 play 的时间，用于 mpv 启动前的宽限期，避免过早判定为 stopped */
   private startedAt = 0
+
+  constructor() {
+    // 队列镜像是内存态，重启后从应用配置恢复，避免抽屉空白
+    const saved = loadConfig()
+    if (Array.isArray(saved.queueTracks)) {
+      this.tracks = saved.queueTracks.filter((t) => t && typeof t.id === 'string')
+      const savedIndex = typeof saved.queueIndex === 'number' ? saved.queueIndex : -1
+      this.index = this.tracks.length ? Math.min(Math.max(savedIndex, 0), this.tracks.length - 1) : -1
+    }
+  }
+
+  /** 队列变化即落盘（Track 均为纯数据，可直接 JSON 序列化） */
+  private persistQueue(): void {
+    saveConfig({ queueTracks: [...this.tracks], queueIndex: this.index })
+  }
 
   subscribe(cb: Listener): () => void {
     this.listeners.add(cb)
@@ -54,6 +90,7 @@ class Player {
   setQueue(tracks: Track[], startIndex = 0, autoPlay = true): void {
     this.tracks = tracks.filter((t) => t.playable !== false)
     this.index = Math.min(Math.max(startIndex, 0), Math.max(this.tracks.length - 1, 0))
+    this.persistQueue()
     this.emit()
     if (autoPlay) void this.playAt(this.index)
   }
@@ -66,6 +103,7 @@ class Player {
     }
     this.tracks = [track, ...this.tracks]
     this.index = 0
+    this.persistQueue()
     await this.playAt(0)
   }
 
@@ -76,8 +114,14 @@ class Player {
       this.errorState('该歌曲不可播放，已跳过')
       return
     }
+    // 从 CLI 队列恢复的条目若没补到加密 ID，只能展示，不能下发播放
+    if (!track.id) {
+      console.warn('[player] 曲目缺少加密 ID，请从搜索或歌单重新播放')
+      return
+    }
 
     this.index = index
+    this.persistQueue()
     this.status = 'playing'
     this.position = 0
     this.duration = track.durationMs / 1000
@@ -95,6 +139,7 @@ class Player {
   async playPlaylist(playlistId: string, tracks: Track[], originalId?: string): Promise<void> {
     this.tracks = tracks.filter((t) => t.playable !== false)
     this.index = 0
+    this.persistQueue()
     this.status = 'playing'
     this.position = 0
     this.duration = this.tracks[0] ? this.tracks[0].durationMs / 1000 : 0
@@ -150,6 +195,7 @@ class Player {
 
   async queueAdd(track: Track, next = false): Promise<void> {
     this.tracks.push(track)
+    this.persistQueue()
     this.emit()
     const args = ['queue', 'add', '--encrypted-id', track.id]
     if (track.originalId) args.push('--original-id', track.originalId)
@@ -169,6 +215,7 @@ class Player {
   async queueClear(): Promise<void> {
     this.tracks = []
     this.index = -1
+    this.persistQueue()
     this.status = 'stopped'
     this.position = 0
     this.duration = 0
@@ -182,6 +229,7 @@ class Player {
     this.tracks.splice(index, 1)
     if (index < this.index) this.index -= 1
     if (index === this.index) this.index = Math.min(this.index, this.tracks.length - 1)
+    this.persistQueue()
     this.emit()
   }
 
@@ -192,6 +240,7 @@ class Player {
     if (this.index === from) this.index = to
     else if (from < this.index && to >= this.index) this.index -= 1
     else if (from > this.index && to <= this.index) this.index += 1
+    this.persistQueue()
     this.emit()
   }
 
@@ -200,6 +249,63 @@ class Player {
     this.position = 0
     this.emit()
     console.error('[player]', message)
+  }
+
+  /**
+   * 冷启动同步 CLI 真实播放态。mpv 是独立进程，应用重启时可能仍在播放；
+   * 内存队列镜像为空时从 CLI 队列恢复，加密 ID 由 CLI 队列缓存补齐，
+   * 读不到时只展示标题（跳播会提示重新选择）。
+   */
+  async hydrate(): Promise<void> {
+    try {
+      const { json } = await runCli(['state'])
+      const state = (json?.state ?? json) as Record<string, unknown> | undefined
+      if (!state) return
+
+      const rawStatus = typeof state.status === 'string' ? state.status : 'stopped'
+      const mapped: PlaybackStatus =
+        rawStatus === 'playing' ? 'playing' : rawStatus === 'paused' ? 'paused' : 'stopped'
+      const rawPos = typeof state.position === 'number' ? state.position : Number(state.position ?? 0)
+      this.position = rawPos > 100_000 ? rawPos / 1000 : Math.max(0, rawPos)
+      const rawDuration = typeof state.duration === 'number' ? state.duration : Number(state.duration ?? 0)
+      if (Number.isFinite(rawDuration) && rawDuration > 0) this.duration = rawDuration
+      if (typeof state.volume === 'number') this.volume = state.volume
+      this.status = mapped
+
+      if (this.tracks.length === 0 && Number(state.queueLength ?? 0) > 0) {
+        const { json: queueJson } = await runCli(['queue'])
+        const rows: Array<{ label?: string; current?: boolean }> = Array.isArray(queueJson?.queue)
+          ? (queueJson?.queue as Array<{ label?: string; current?: boolean }>)
+          : []
+        const cached = readCliQueueItems()
+        this.tracks = rows.map((row, i) => {
+          const label = typeof row.label === 'string' ? row.label : ''
+          const [name, ...artists] = label.split(' - ')
+          const meta = cached.find((item) => item.title === label)
+          return {
+            id: meta?.encryptedId ?? '',
+            originalId: meta?.originalId !== undefined ? String(meta.originalId) : undefined,
+            name: name || label || `曲目 ${i + 1}`,
+            artists: artists.length ? [artists.join(' - ')] : [],
+            album: '',
+            durationMs: meta?.duration ? Math.round(meta.duration * 1000) : 0,
+            playable: true,
+          } satisfies Track
+        })
+        const current = rows.findIndex((row) => row.current)
+        this.index = current >= 0 ? current : 0
+        this.persistQueue()
+      }
+
+      if (typeof state.currentIndex === 'number' && state.currentIndex >= 0 && state.currentIndex < this.tracks.length) {
+        this.index = state.currentIndex
+      }
+
+      this.emit()
+      if (mapped === 'playing') this.startPolling()
+    } catch {
+      // CLI 不可用（未登录 / 未配置）时保持本地状态，不影响首屏
+    }
   }
 
   /** 轮询 `ncm-cli state`，驱动进度条与自动续播 */

@@ -10,6 +10,7 @@ export type CapabilityId =
   | 'searchPlaylist'
   | 'getLyric'
   | 'playlistDetail'
+  | 'playlistTracks'
   | 'dailyRecommend'
   | 'recommendPlaylists'
   | 'userPlaylists'
@@ -50,6 +51,10 @@ export const CAPABILITY_COMMANDS: Record<CapabilityId, CommandSpec[]> = {
     { argv: ['playlist', 'detail', '--playlistId', '{playlistId}'], requiresUserInput: true },
     { argv: ['playlist', '--playlistId', '{playlistId}'], requiresUserInput: true },
   ],
+  // `playlist get` 只返回歌单元数据，曲目列表由这条动态命令单独提供
+  playlistTracks: [
+    { argv: ['playlist', 'tracks', '--playlistId', '{playlistId}'], requiresUserInput: true },
+  ],
   dailyRecommend: [
     { argv: ['recommend', 'daily'], requiresUserInput: true },
     { argv: ['daily'], requiresUserInput: true },
@@ -83,6 +88,7 @@ export const CAPABILITY_LABELS: Record<CapabilityId, string> = {
   searchPlaylist: '搜索歌单',
   getLyric: '获取歌词',
   playlistDetail: '歌单详情',
+  playlistTracks: '歌单曲目',
   dailyRecommend: '每日推荐',
   recommendPlaylists: '推荐歌单',
   userPlaylists: '我的歌单',

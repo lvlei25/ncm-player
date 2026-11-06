@@ -1,6 +1,7 @@
 import { app, safeStorage } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
+import type { Track } from '../src/shared/types'
 
 export interface AppConfig {
   /** AI 模型配置（apiKey 单独加密存储） */
@@ -21,6 +22,9 @@ export interface AppConfig {
   playMode: 'order' | 'repeat-one' | 'shuffle'
   /** 运行期命令覆盖（能力 → argv） */
   commandOverrides: Record<string, string[]>
+  /** 播放队列镜像：应用重启后恢复，避免队列抽屉空白 */
+  queueTracks?: Track[]
+  queueIndex?: number
 }
 
 const DEFAULTS: AppConfig = {

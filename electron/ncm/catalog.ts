@@ -1,5 +1,5 @@
 import type { LyricPayload, Playlist, SearchResult, SearchType, Track } from '../../src/shared/types'
-import { getCommandTree, resolveCommand } from './discovery'
+import { getCommandTree, resolveCommand, specExists } from './discovery'
 import { extractLyricPayload } from './lyric'
 import { dedupePlaylists, dedupeTracks, harvest, normalizeSearch } from './normalize'
 import { runCli } from './runner'
@@ -107,6 +107,23 @@ export async function getPlaylistDetail(playlistId: string): Promise<{ playlist:
     playlist: dedupePlaylists(result.playlists)[0] ?? null,
     tracks: dedupeTracks(result.tracks),
   }
+
+  // `playlist get` 只返回歌单元数据（含 trackCount），曲目必须再取一次。
+  // 服务端动态下发命令，先确认 `playlist tracks` 存在，缺失时保持空态。
+  if (payload.tracks.length === 0) {
+    const tracksCmd = resolveCommand('playlistTracks', { playlistId }, tree)
+    if (specExists(tracksCmd.spec, tree)) {
+      const tracksArgv = [...tracksCmd.argv, '--limit', '100']
+      if (tracksCmd.spec.requiresUserInput) tracksArgv.push('--userInput', `查看歌单 ${playlistId} 的曲目`)
+      try {
+        const { json: tracksJson } = await runCli(tracksArgv)
+        payload.tracks = dedupeTracks(harvest(tracksJson ?? {}).tracks)
+      } catch {
+        // 命令被服务端移除时退回空列表，由 UI 展示空态
+      }
+    }
+  }
+
   playlistCache.set(playlistId, payload)
   return payload
 }

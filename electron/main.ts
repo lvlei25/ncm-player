@@ -129,6 +129,8 @@ if (!gotLock) {
       }
     })
     await ensurePlayerBackend().catch(() => undefined)
+    // 后台同步 CLI 真实播放态与队列（mpv 可能在应用重启期间仍在播放），不阻塞首屏
+    void player.hydrate().catch(() => undefined)
   })
 
   app.on('activate', () => showWindow())
