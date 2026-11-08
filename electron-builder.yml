@@ -14,6 +14,15 @@ files:
 extraResources:
   - from: build/icon.png
     to: icon.png
+  # 托盘单色符号（明暗两套 + @2x），Electron 会自动合成高 DPI 表示
+  - from: build/tray-dark.png
+    to: tray-dark.png
+  - from: build/tray-dark@2x.png
+    to: tray-dark@2x.png
+  - from: build/tray-light.png
+    to: tray-light.png
+  - from: build/tray-light@2x.png
+    to: tray-light@2x.png
 extraMetadata:
   main: dist-electron/main.cjs
 linux:

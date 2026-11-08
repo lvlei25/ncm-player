@@ -129,7 +129,7 @@ export function PlayerBar({ onOpenQueue, onOpenLyric, activeLyric }: PlayerBarPr
             <span className="w-9 shrink-0 text-right text-[10px] tabular-nums text-cloud-500">
               {formatSeconds(position)}
             </span>
-            <div className="relative flex-1">
+            <div className="relative flex flex-1 items-center">
               <div className="absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 overflow-hidden rounded-full bg-white/10">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-ncm-deep via-ncm to-ncm-light transition-[width] duration-200"

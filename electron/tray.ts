@@ -1,19 +1,36 @@
-import { app, Menu, nativeImage, Tray } from 'electron'
+import { app, Menu, nativeImage, nativeTheme, Tray } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { player } from './ncm/player'
 
 let tray: Tray | null = null
+let themeListener: (() => void) | null = null
 
+/** 状态栏用单色符号图标（随系统明暗主题切换），不再用彩色应用图标 */
 function resolveIcon(): Electron.NativeImage {
+  const name = nativeTheme.shouldUseDarkColors ? 'tray-light.png' : 'tray-dark.png'
   const candidates = [
-    path.join(process.resourcesPath ?? '', 'icon.png'),
-    path.join(process.resourcesPath ?? '', 'build', 'icon.png'),
-    path.join(app.getAppPath(), 'build', 'icon.png'),
-    path.join(process.cwd(), 'build', 'icon.png'),
+    path.join(process.resourcesPath ?? '', name),
+    path.join(process.resourcesPath ?? '', 'build', name),
+    path.join(app.getAppPath(), 'build', name),
+    path.join(process.cwd(), 'build', name),
   ]
   for (const file of candidates) {
     if (file && fs.existsSync(file)) {
+      const img = nativeImage.createFromPath(file)
+      // 同目录的 `<name>@2x.png` 会被 Electron 自动合成高 DPI 表示
+      if (!img.isEmpty()) return img
+    }
+  }
+
+  // 兜底：旧安装包里只有彩色应用图标
+  const fallback = [
+    path.join(process.resourcesPath ?? '', 'icon.png'),
+    path.join(app.getAppPath(), 'build', 'icon.png'),
+    path.join(process.cwd(), 'build', 'icon.png'),
+  ]
+  for (const file of fallback) {
+    if (fs.existsSync(file)) {
       const img = nativeImage.createFromPath(file)
       if (!img.isEmpty()) return img.resize({ width: 22, height: 22 })
     }
@@ -48,9 +65,18 @@ export function createTray(onShow: () => void): void {
   player.subscribe(() => {
     tray?.setContextMenu(buildMenu(onShow))
   })
+
+  themeListener = () => {
+    if (tray) tray.setImage(resolveIcon())
+  }
+  nativeTheme.on('updated', themeListener)
 }
 
 export function destroyTray(): void {
+  if (themeListener) {
+    nativeTheme.removeListener('updated', themeListener)
+    themeListener = null
+  }
   tray?.destroy()
   tray = null
 }

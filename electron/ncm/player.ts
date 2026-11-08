@@ -7,6 +7,11 @@ import { cliQueue, runCli } from './runner'
 
 type Listener = (state: PlaybackState) => void
 
+/** 意外断流后自动重播：等待时长、重试间隔与最大次数 */
+const RECOVER_AFTER_MS = 3000
+const RECOVER_COOLDOWN_MS = 5000
+const MAX_RECOVER_ATTEMPTS = 3
+
 interface CliQueueItem {
   title?: string
   encryptedId?: string
@@ -40,6 +45,19 @@ class Player {
   private volumeTimer: NodeJS.Timeout | null = null
   /** 刚下发 play 的时间，用于 mpv 启动前的宽限期，避免过早判定为 stopped */
   private startedAt = 0
+  /** 用户主动停止/清空队列，不触发断流恢复 */
+  private intentionalStop = false
+  private stoppedSince = 0
+  private recoverAttempts = 0
+  private lastRecoverAt = 0
+
+  /** 每次重新下发播放时复位恢复状态 */
+  private markPlaybackStart(): void {
+    this.startedAt = Date.now()
+    this.intentionalStop = false
+    this.stoppedSince = 0
+    this.recoverAttempts = 0
+  }
 
   constructor() {
     // 队列镜像是内存态，重启后从应用配置恢复，避免抽屉空白
@@ -125,7 +143,7 @@ class Player {
     this.status = 'playing'
     this.position = 0
     this.duration = track.durationMs / 1000
-    this.startedAt = Date.now()
+    this.markPlaybackStart()
     this.emit()
 
     const args = ['play', '--song', '--encrypted-id', track.id]
@@ -143,7 +161,7 @@ class Player {
     this.status = 'playing'
     this.position = 0
     this.duration = this.tracks[0] ? this.tracks[0].durationMs / 1000 : 0
-    this.startedAt = Date.now()
+    this.markPlaybackStart()
     this.emit()
 
     await runCli(['play', '--playlist', '--encrypted-id', playlistId, '--original-id', originalId ?? playlistId])
@@ -206,6 +224,7 @@ class Player {
   /** 应用退出时调用：mpv 是独立进程，必须显式 stop 才不会继续出声 */
   async stop(): Promise<void> {
     this.stopPolling()
+    this.intentionalStop = true
     this.status = 'stopped'
     this.position = 0
     this.emit()
@@ -215,6 +234,7 @@ class Player {
   async queueClear(): Promise<void> {
     this.tracks = []
     this.index = -1
+    this.intentionalStop = true
     this.persistQueue()
     this.status = 'stopped'
     this.position = 0
@@ -379,7 +399,17 @@ class Player {
           })
       }
 
-      if (mapped !== 'playing' && !inGrace) this.stopTimerOnly()
+      if (mapped === 'playing') {
+        this.stoppedSince = 0
+        this.recoverAttempts = 0
+        this.intentionalStop = false
+      }
+
+      const canRecover = !this.intentionalStop && this.tracks.length > 0 && !!this.current()
+      // 断流时保持轮询，给自动恢复留观察窗口；暂停/主动停止/重试耗尽才停轮询
+      const stopPolling =
+        mapped === 'paused' || (mapped === 'stopped' && (!canRecover || this.recoverAttempts >= MAX_RECOVER_ATTEMPTS))
+      if (stopPolling && !inGrace) this.stopTimerOnly()
       this.emit()
 
       // 自动续播：CLI 已切歌时不再重复下发 play
@@ -387,6 +417,31 @@ class Player {
         this.advancing = true
         await this.step(1)
         this.advancing = false
+      }
+
+      // 意外断流：CLI 已停止但队列仍有当前曲目，等待片刻后重播，避免一直卡在 stopped
+      if (mapped === 'stopped' && canRecover && !inGrace && !trackChanged && !needsQueueSync) {
+        const atEnd = this.duration > 0 && this.position >= this.duration - 2
+        if (atEnd) {
+          // 曲末的短暂停顿交给 CLI 自动切歌
+          this.stoppedSince = 0
+        } else {
+          const now = Date.now()
+          if (!this.stoppedSince) this.stoppedSince = now
+          const stalled = now - this.stoppedSince >= RECOVER_AFTER_MS
+          const cooledDown = now - this.lastRecoverAt >= RECOVER_COOLDOWN_MS
+          if (stalled && cooledDown && this.recoverAttempts < MAX_RECOVER_ATTEMPTS) {
+            const attempts = this.recoverAttempts + 1
+            this.lastRecoverAt = now
+            this.stoppedSince = 0
+            if (process.env.NCM_DEBUG === '1') {
+              console.log(`[player] 断流恢复：重播 ${this.current()?.name ?? ''} (${attempts}/${MAX_RECOVER_ATTEMPTS})`)
+            }
+            await this.playAt(this.index)
+            // playAt 会复位恢复状态，这里保留累计重试次数
+            this.recoverAttempts = attempts
+          }
+        }
       }
       if (mapped === 'stopped' && this.tracks.length > 0 && this.position > 0 && this.status === 'stopped') {
         this.position = 0

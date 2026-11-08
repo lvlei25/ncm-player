@@ -21,7 +21,7 @@
 └─ L1 类型与构建（tsc -b + vite build）        编译期门禁
 ```
 
-### L2 覆盖范围（自动化，65 例）
+### L2 覆盖范围（自动化，69 例）
 
 | 文件 | 被测对象 | 用例数 |
 | --- | --- | --- |
@@ -33,6 +33,7 @@
 | `test/playlist-tracks.spec.ts` | `catalog.ts` 歌单元数据 + `playlist tracks` 曲目合并、能力缺失降级、缓存 | 4 |
 | `test/queue-hydrate.spec.ts` | `player.ts` 队列持久化/恢复、冷启动 CLI 播放态同步 | 4 |
 | `test/player-state-sync.spec.ts` | `player.ts` 轮询按 CLI 标题同步当前曲目/时长、队列重建 | 3 |
+| `test/player-resume.spec.ts` | `player.ts` 断流自动重播、主动停止/曲末不误触发、重试上限 | 4 |
 
 测试夹具 `test/fixtures.ts` 全部来自 **2026-11-01 真实 CLI 输出**（脱敏），
 不是照文档脑补的 schema——这正是本项目最容易出问题的地方。
@@ -65,7 +66,7 @@ NCM_DEBUG=1 npm run dev
 
 必须同时满足：
 
-1. `npm test` 全绿（65/65）
+1. `npm test` 全绿（69/69）
 2. `npx tsc -b` 零错误（含 `tsconfig.electron.json`）
 3. `npm run build` 成功
 4. 涉及 UI 的改动：`dev:web` 截图回归
