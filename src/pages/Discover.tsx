@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronRight, Play, Sparkles } from 'lucide-react'
+import { ChevronRight, Play } from 'lucide-react'
 import type { Playlist, Track } from '../shared/types'
 import { Cover } from '../components/Cover'
 import { TrackList } from '../components/TrackList'
@@ -18,22 +18,33 @@ export function Discover() {
   const nickname = useAppStore((s) => s.session?.nickname)
 
   useEffect(() => {
-    // CLI 调用是串行的：先取首屏最重要的「每日推荐」，歌单网格随后补上
-    api.catalog
-      .daily()
-      .then((res) => {
+    // 两个能力各画各的骨架：并行入队，谁先返回谁先渲染（CLI 侧仍由串行队列执行）
+    let alive = true
+    void Promise.all([
+      api.catalog.daily().then((res) => {
+        if (!alive) return
         if (res.ok) setDaily(res.data)
         else {
           const err = failureText(res)
           if (err) notify({ kind: 'error', text: err })
         }
-        return api.catalog.recommendPlaylists()
-      })
-      .then((res) => {
+      }),
+      api.catalog.recommendPlaylists().then((res) => {
+        if (!alive) return
         if (res.ok) setPlaylists(res.data)
-      })
+        else {
+          const err = failureText(res)
+          if (err) notify({ kind: 'error', text: err })
+        }
+      }),
+    ])
       .catch((error) => console.error('[discover]', error))
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
   }, [notify])
 
   const hero = daily[0]
@@ -42,32 +53,31 @@ export function Discover() {
     <div className="animate-fade-up px-8 pb-10 pt-7">
       <header className="mb-7 flex items-end justify-between">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.3em] text-cloud-500">{greeting()}</p>
-          <h1 className="mt-2 text-[30px] font-semibold leading-tight tracking-tight text-cloud-100">
-            {nickname ? `${nickname}，今天想听点什么` : '今天想听点什么'}
+          <p className="text-[12px] text-cloud-500">{greeting()}</p>
+          <h1 className="mt-2 text-[30px] font-medium leading-tight text-cloud-100">
+            {nickname ? `${nickname}，今日推荐` : '今日推荐'}
           </h1>
-          <p className="mt-2 text-[12.5px] text-cloud-500">
-            每日推荐根据你的红心歌曲生成 · 每首歌都值得被认真听完
+          <p className="mt-2 text-[13px] text-cloud-500">
+            根据红心歌曲生成，每天更新
           </p>
         </div>
         <Link
           to="/search"
-          className="hidden items-center gap-1.5 rounded-full border border-white/8 px-3.5 py-1.5 text-[11.5px] text-cloud-400 transition hover:border-ncm/40 hover:text-cloud-100 md:flex"
+          className="hidden items-center gap-1.5 rounded-lg border border-white/8 px-3.5 py-1.5 text-[12px] text-cloud-400 transition-colors hover:border-ncm/40 hover:text-cloud-100 md:flex"
         >
           去搜索
-          <ChevronRight className="h-3 w-3" />
+          <ChevronRight className="h-4 w-4" />
         </Link>
       </header>
 
       {/* 每日推荐主卡 */}
-      <section className="relative mb-9 overflow-hidden rounded-3xl border border-white/8">
+      <section className="relative mb-9 overflow-hidden rounded-2xl border border-white/8">
         <div className="absolute inset-0">
           <Cover
             src={hero?.coverUrl}
             alt="每日推荐"
             className="h-full w-full opacity-40 blur-[2px]"
-            rounded="rounded-3xl"
-            seed={hero?.name ?? 'daily'}
+            rounded="rounded-2xl"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-ink-950 via-ink-950/85 to-ink-950/30" />
         </div>
@@ -76,17 +86,13 @@ export function Discover() {
           <Cover
             src={hero?.coverUrl}
             alt="每日推荐封面"
-            className="h-[148px] w-[148px] shrink-0 shadow-2xl"
-            rounded="rounded-2xl"
-            seed={hero?.name ?? 'daily'}
+            className="h-[148px] w-[148px] shrink-0 shadow-lg"
+            rounded="rounded-xl"
           />
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-[10.5px] uppercase tracking-[0.24em] text-ncm-light">
-              <Sparkles className="h-3 w-3" />
-              daily mix
-            </div>
-            <h2 className="mt-2 text-[24px] font-semibold text-white">每日推荐</h2>
-            <p className="mt-2 max-w-[440px] text-[12.5px] leading-relaxed text-cloud-400">
+            <div className="text-[12px] text-ncm">每天更新</div>
+            <h2 className="mt-2 text-[24px] font-medium text-white">每日推荐</h2>
+            <p className="mt-2 max-w-[440px] text-[13px] leading-relaxed text-cloud-400">
               {loading
                 ? '正在为你挑选今天的歌单…'
                 : `共 ${daily.length} 首 · 首推《${hero?.name ?? '—'}》 ${hero ? `· ${artistsText(hero.artists)}` : ''}`}
@@ -95,12 +101,12 @@ export function Discover() {
               <button
                 type="button"
                 onClick={() => void playQueue(daily, 0)}
-                className="flex items-center gap-2 rounded-full bg-gradient-to-r from-ncm to-ncm-deep px-5 py-2.5 text-[12.5px] font-medium text-white shadow-glow transition hover:brightness-110 active:scale-[0.98]"
+                className="flex items-center gap-2 rounded-lg bg-ncm px-5 py-2.5 text-[13px] font-medium text-white transition-colors hover:bg-ncm-deep active:scale-[0.98]"
               >
-                <Play className="h-3.5 w-3.5 fill-current" />
+                <Play className="h-4 w-4 fill-current" />
                 播放全部
               </button>
-              <span className="text-[11px] text-cloud-500">{daily.length} 首 · {Math.round(daily.reduce((sum, t) => sum + t.durationMs, 0) / 60000)} 分钟</span>
+              <span className="text-[12px] tabular-nums text-cloud-500">{daily.length} 首 · {Math.round(daily.reduce((sum, t) => sum + t.durationMs, 0) / 60000)} 分钟</span>
             </div>
           </div>
         </div>
@@ -110,36 +116,35 @@ export function Discover() {
       <section className="mb-9">
         <div className="mb-4 flex items-end justify-between">
           <div>
-            <h3 className="text-[15px] font-medium text-cloud-100">推荐歌单</h3>
+            <h3 className="text-[16px] font-medium text-cloud-100">推荐歌单</h3>
             <p className="mt-1 text-[11px] text-cloud-500">按你的收听习惯挑选</p>
           </div>
-          <span className="text-[11px] text-cloud-500">{playlists.length} 个</span>
+          <span className="text-[11px] tabular-nums text-cloud-500">{playlists.length} 个</span>
         </div>
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
           {loading &&
             Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="space-y-3">
-                <div className="aspect-[3/4] animate-pulse rounded-2xl bg-white/[0.04]" />
-                <div className="h-3 w-2/3 animate-pulse rounded-full bg-white/[0.04]" />
+                <div className="aspect-[3/4] rounded-xl bg-white/[0.04]" />
+                <div className="h-3 w-2/3 rounded-md bg-white/[0.04]" />
               </div>
             ))}
 
           {!loading &&
             playlists.slice(0, 8).map((playlist) => (
               <div key={playlist.id} className="group relative">
-                <div className="relative overflow-hidden rounded-2xl">
+                <div className="relative overflow-hidden rounded-xl">
                   <Link to={`/playlist/${playlist.id}`} className="block">
                     <Cover
                       src={playlist.coverUrl}
                       alt={playlist.name}
-                      className="aspect-[3/4] w-full transition-transform duration-500 group-hover:scale-[1.04]"
-                      rounded="rounded-2xl"
-                      seed={playlist.name}
+                      className="aspect-[3/4] w-full"
+                      rounded="rounded-xl"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-ink-950/80 via-transparent to-transparent opacity-70" />
                   </Link>
-                  <span className="pointer-events-none absolute right-3 top-3 rounded-full bg-ink-950/60 px-2 py-0.5 text-[10px] text-cloud-300 backdrop-blur">
+                  <span className="pointer-events-none absolute right-3 top-3 rounded-md bg-ink-950/60 px-2 py-0.5 text-[11px] tabular-nums text-cloud-300">
                     {formatCount(playlist.trackCount)} 首
                   </span>
                   <button
@@ -155,15 +160,15 @@ export function Discover() {
                         })
                         .catch((error) => console.error('[playlist]', error))
                     }}
-                    className="absolute bottom-3 right-3 flex h-10 w-10 translate-y-2 items-center justify-center rounded-full bg-ncm text-white opacity-0 shadow-glow transition-all duration-300 hover:brightness-110 group-hover:translate-y-0 group-hover:opacity-100"
+                    className="absolute bottom-3 right-3 flex h-10 w-10 translate-y-2 items-center justify-center rounded-full bg-ncm text-white opacity-0 transition-[opacity,transform] duration-300 hover:bg-ncm-deep group-hover:translate-y-0 group-hover:opacity-100"
                   >
                     <Play className="ml-0.5 h-4 w-4 fill-current" />
                   </button>
                 </div>
                 <div className="mt-3 px-0.5">
-                  <p className="truncate text-[12.5px] text-cloud-100">{playlist.name}</p>
-                  <p className="mt-1 truncate text-[10.5px] text-cloud-500">
-                    {playlist.creator ? `by ${playlist.creator}` : '网易云音乐'}
+                  <p className="truncate text-[13px] text-cloud-100">{playlist.name}</p>
+                  <p className="mt-1 truncate text-[11px] text-cloud-500">
+                    {playlist.creator ? `来自 ${playlist.creator}` : '网易云音乐'}
                   </p>
                 </div>
               </div>
@@ -175,11 +180,11 @@ export function Discover() {
       <section>
         <div className="mb-3 flex items-end justify-between">
           <div>
-            <h3 className="text-[15px] font-medium text-cloud-100">每日推荐 · 曲目</h3>
+            <h3 className="text-[16px] font-medium text-cloud-100">每日推荐曲目</h3>
             <p className="mt-1 text-[11px] text-cloud-500">点击任意一首开始播放</p>
           </div>
         </div>
-        <div className={cn('rounded-2xl border border-white/6 bg-white/[0.02] p-2', loading && 'opacity-60')}>
+        <div className={cn('rounded-xl border border-white/6 bg-white/[0.02] p-2', loading && 'opacity-60')}>
           <TrackList tracks={daily} heightClass="h-[320px]" emptyHint="还没有拿到每日推荐，检查一下登录状态" />
         </div>
       </section>

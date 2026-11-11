@@ -41,7 +41,7 @@ function pickNumber(o: Dict, keys: string[]): number | undefined {
 function pickArtists(o: Dict): string[] {
   const raw = pick(o, ARTIST_KEYS)
   if (!raw) return []
-  if (typeof raw === 'string') return raw.split(/[\/、,&]/).map((s) => s.trim()).filter(Boolean)
+  if (typeof raw === 'string') return raw.split(/[/、,&]/).map((s) => s.trim()).filter(Boolean)
   if (Array.isArray(raw)) {
     return raw
       .map((item) => {

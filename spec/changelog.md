@@ -2,6 +2,71 @@
 
 倒序记录，最新在最上。每条包含：变更内容 / 原因 / 影响文件 / 验证方式。
 
+## v0.7.2 — 2026-11-11 IPC 契约与 lint 清理
+
+**修复 1：外链通道返回契约**
+
+- 现象：`window.ncm.app.openExternal(...)` 返回裸 `true`，而 `NcmBridge.app.openExternal` 声明的是 `Promise<IpcResult<boolean>>`。
+- 根因：`electron/ipc.ts` 的 `shell:open-external` 是唯一绕过统一 `handle()` 包装、直接 `ipcMain.handle` 注册的通道（全量测试 E36 发现）。
+- 修复：改用 `handle()`，入参做 string 校验，保留 http(s) 白名单；渲染层调用点无需改动。
+
+**修复 2：既有 lint 错误清零**
+
+- `normalize.ts:44` 字符组内 `\/` 属多余转义 → `/[/、,&]/`，并补歌手字符串分割回归用例。
+- `TitleBar.tsx` 未使用的 `runtimeMode` 已在 v0.7.1 顺带移除。
+- `npm run lint` 首次达到 **0 错误**。
+
+**回归用例**：新增 `test/ipc-contract.spec.ts` 3 例（结构化返回、URL 白名单、invoke 通道唯一性），`test/normalize.spec.ts` 补 1 例；自动化 94 → 98。
+
+**验证**：`npm test` 98/98、`tsc -b` 零错误、`npm run lint` 0 错误、`npm run build` 成功；重新打包并覆盖安装 deb（`install ok installed`、sandbox 4755、`dpkg --audit` 干净）；安装版 `[boot] window ready 640ms`，CDP 手工回归 **7/7**（外链契约、环境自检、搜索、静音、播放模式轮换、全屏页、收起播放页）；`docs/test-cases.md` 更新 4 项结果，剩余未执行 40 项。
+
+**影响文件**：`electron/ipc.ts`、`electron/ncm/normalize.ts`、`test/ipc-contract.spec.ts`（新）、`test/normalize.spec.ts`、`spec/*`、`docs/test-cases.md`
+
+## v0.7.1 — 2026-11-11 界面去装饰化 polish（unslop）
+
+**方向**：沉静、有实体感、微暖；听音室与唱片架；黑胶是唯一亮点；唱片沟槽与中心圆标为签名细节。保留既有品牌色、字体与页面结构，只清理装饰层。
+
+**九遍改动**
+
+1. Spacing：播放栏 86 → 88px、侧栏 222 → 240px、导航行统一 36px。
+2. Color：删除 `glow` 红色发光阴影；`.glass`/`.glass-soft` 改纯色 + 发丝边；播放按钮、进度条、向导按钮改纯品牌红；头像与封面占位改中性；滑块红环、滚动条 hover 改中性；新增键盘焦点环。
+3. Icons：删除全部 `Sparkles`（AI 换 `MessageSquareText`，其余去图标）；图标统一 18px；删除 `NEW` 徽标。
+4. Copy：`NETEASE CLOUD MUSIC`→网易云音乐、`POWERED BY`→基于、`DAILY MIX`→每天更新、`NOW PLAYING`→正在播放、`search`→搜索；发现页标题改「今日推荐」并去掉抒情副标题；`by xx`→`来自 xx`。
+5. Type：字号归一 11/12/13/14/16/20/24/30，去掉全部大写宽字距与半像素字号，大标题 600 → 500。
+6. Layout：保持不变（4 等宽歌单卡、全屏页叠播放栏只作为建议）。
+7. Details：控件半径收敛到 8/12/16，全 pill 改圆角；队列抽屉入场统一 `fade-up`。
+8. Visuals：删除随机彩色封面光晕、黑胶红晕、向导红晕、App 背景彩色 wash；保留黑胶沟槽与真实封面模糊层。
+9. Motion：删除 pulse、hover 放大、`transition-all`、进度条 width 过渡；保留黑胶旋转、播放音柱与一次入场淡入。
+
+**删除**：`src/lib/format.ts` 的 `coverGradient`（随机蓝紫光晕）及 `test/format.spec.ts` 2 条用例、`Cover` 组件无用的 `seed` 属性与全部调用点；`tailwind.config.js` 的 `glow` 阴影与 `breathe` 动画。自动化用例 96 → 94。
+
+**顺带修复**：`TitleBar.tsx` 未使用 `runtimeMode` 的 lint 错误（全量 lint 从 2 个错误降到 1 个，仅剩 `normalize.ts:44`）。
+
+**验证**：`npm test` 94/94、`tsc -b` 零错误、`npm run build` 成功；重新打包并覆盖安装 deb（`install ok installed`、sandbox 4755、`dpkg --audit` 干净）；安装版启动 `[boot] window ready 318ms`，CDP 断言 5/5（新文案生效、旧 slop 文案与类名全部消失、Electron 桥与播放态可用、播放模式按钮正常）；发现页与全屏页截图比对，审计清单中的迹象全部消除。
+
+**影响文件**：`tailwind.config.js`、`src/styles/index.css`、`src/App.tsx`、`src/lib/format.ts`、`src/components/{Cover,PlayerBar,TitleBar,Sidebar,RightPanel,AiPanel,LyricPanel,TrackList,Notice,QueueDrawer,setup/*}.tsx`、`src/pages/{Discover,NowPlaying,Search,Setup,PlaylistDetail}.tsx`、`test/format.spec.ts`、`spec/*`
+
+**建议（未改）**：推荐歌单 4 个等宽卡改有节奏的网格；全屏页是否保留底部播放栏；封面加载态可用沟槽纹理进一步强化黑胶质感。
+
+## v0.7.0 — 2026-11-09 Tauri 迁移阶段 1：Rust CLI 桥接
+
+**背景**：阶段 0 只验证系统 WebView 与最小 MPRIS 服务，前端在 Tauri 壳里走 `mockBridge`，看不到真实数据。
+
+**改动**
+
+- `src-tauri/src/cli.rs`（新）：`ncm-cli` 路径解析（NCM_CLI_BIN / PATH / npm 全局 bin / nvm / fnm / volta / bun）、串行锁、25 s 超时、混合输出 JSON 提取、错误码分类；首命令白名单，参数以数组传递不经过 shell。
+- `src-tauri/src/commands.rs`（新）：`cli_invoke` / `cli_text` / `env_check` / `app_info` / `open_external` / `window_*`，返回值统一为 `IpcResult`。
+- `src-tauri/src/main.rs`：注册 8 个 Tauri 命令；`Cargo.toml` 加 `serde` / `serde_json`。
+- `src/lib/tauriBridge.ts`（新）：实现完整 `NcmBridge` 契约，复用 `electron/ncm/normalize.ts`、`command-map.ts`、`lyric.ts` 做归一化；阶段 1 未实现的能力（凭证/扫码/AI）显式返回 `UNSUPPORTED`。
+- `src/lib/api.ts`：新增 Tauri 运行时探测，形成 Electron / Tauri / 预览三态。
+- `package.json` 加 `@tauri-apps/api`；`tauri.conf.json` / `capabilities/default.json` 描述更新到阶段 1。
+
+**明确不做（阶段 2/3）**：凭证加密存储、扫码登录、AI 点歌、队列持久化、自动续播、MPRIS 真实播控、系统托盘、安装包交付。
+
+**验证**：`cargo test` 8/8、`npm test` 96/96（新增 `test/tauri-bridge.spec.ts` 10 例）、`npx tsc -b` 零错误、`npm run build` 成功；`npm run tauri dev` 实机启动，窗口标题「黑胶 · 网易云音乐 (Tauri)」、MPRIS `Identity=黑胶音乐`，日志出现 `[cli] recommend daily 1853ms` / `playlist radar 1453ms` / `state` 轮询，证明「前端 → Rust → ncm-cli」链路打通。
+
+**影响文件**：`src-tauri/{Cargo.toml,src/cli.rs,src/commands.rs,src/main.rs,tauri.conf.json,capabilities/default.json}`、`src/lib/{tauriBridge.ts,api.ts}`、`package.json`、`eslint.config.js`（忽略 Rust target 产物）、`spec/*`、`test/tauri-bridge.spec.ts`
+
 ## v0.6.2 — 2026-11-01 修复：退出应用后音乐仍在播放
 
 **现象**：关闭应用窗口后，音乐继续播放。

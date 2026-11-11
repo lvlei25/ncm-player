@@ -39,7 +39,7 @@ export function PlaylistDetail() {
     <div className="animate-fade-up px-8 pb-10 pt-6">
       <Link
         to="/"
-        className="inline-flex items-center gap-1.5 text-[11.5px] text-cloud-500 transition hover:text-cloud-100"
+        className="inline-flex items-center gap-1.5 text-[12px] text-cloud-500 transition-colors hover:text-cloud-100"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         返回发现
@@ -51,16 +51,15 @@ export function PlaylistDetail() {
           alt={playlist?.name ?? '歌单'}
           className="h-[196px] w-[196px] shrink-0 shadow-2xl"
           rounded="rounded-2xl"
-          seed={playlist?.name ?? id}
         />
 
         <div className="min-w-0 flex-1">
-          <p className="text-[10.5px] uppercase tracking-[0.28em] text-ncm-light">playlist</p>
-          <h1 className="mt-2 text-[28px] font-semibold leading-tight text-cloud-100">
+          <p className="text-[11px] text-ncm-light">playlist</p>
+          <h1 className="mt-2 text-[28px] font-medium leading-tight text-cloud-100">
             {loading ? '正在加载歌单…' : playlist?.name ?? '未命名歌单'}
           </h1>
 
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-[11.5px] text-cloud-500">
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-[12px] text-cloud-500">
             <span className="rounded-full bg-white/6 px-2 py-0.5 text-cloud-400">
               {playlist?.creator ?? '网易云音乐'}
             </span>
@@ -82,7 +81,7 @@ export function PlaylistDetail() {
                 }
                 void playPlaylist(id, tracks)
               }}
-              className="flex items-center gap-2 rounded-full bg-gradient-to-r from-ncm to-ncm-deep px-5 py-2.5 text-[12.5px] font-medium text-white shadow-glow transition hover:brightness-110 active:scale-[0.98]"
+              className="flex items-center gap-2 rounded-lg bg-ncm px-5 py-2.5 text-[13px] font-medium text-white transition-colors hover:bg-ncm-deep active:scale-[0.98]"
             >
               <Play className="h-3.5 w-3.5 fill-current" />
               播放全部
@@ -92,7 +91,7 @@ export function PlaylistDetail() {
               onClick={() => {
                 tracks.slice(0, 20).forEach((track) => void queueAdd(track))
               }}
-              className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2.5 text-[12px] text-cloud-300 transition hover:border-white/20 hover:text-cloud-100"
+              className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2.5 text-[12px] text-cloud-300 transition-colors hover:border-white/20 hover:text-cloud-100"
             >
               <ListPlus className="h-3.5 w-3.5" />
               加入队列
@@ -101,7 +100,7 @@ export function PlaylistDetail() {
               type="button"
               aria-label="收藏歌单"
               onClick={() => setLiked((v) => !v)}
-              className={liked ? 'text-ncm' : 'text-cloud-500 transition hover:text-cloud-100'}
+              className={liked ? 'text-ncm' : 'text-cloud-500 transition-colors hover:text-cloud-100'}
             >
               <Heart className={liked ? 'h-5 w-5 fill-ncm' : 'h-5 w-5'} />
             </button>

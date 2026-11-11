@@ -40,6 +40,19 @@ export interface SearchResult {
 
 export type PlaybackStatus = 'playing' | 'paused' | 'stopped'
 
+/** 播放模式：顺序播放 / 列表循环 / 单曲循环 / 随机播放 */
+export type PlayMode = 'order' | 'repeat-all' | 'repeat-one' | 'shuffle'
+
+/** 播放栏按钮的切换顺序 */
+export const PLAY_MODES: PlayMode[] = ['order', 'repeat-all', 'repeat-one', 'shuffle']
+
+export const PLAY_MODE_LABELS: Record<PlayMode, string> = {
+  order: '顺序播放',
+  'repeat-all': '列表循环',
+  'repeat-one': '单曲循环',
+  shuffle: '随机播放',
+}
+
 export interface PlaybackState {
   status: PlaybackStatus
   /** 秒 */
@@ -50,6 +63,7 @@ export interface PlaybackState {
   currentIndex: number
   queueLength: number
   current: Track | null
+  playMode: PlayMode
 }
 
 export interface LyricLine {

@@ -128,9 +128,13 @@ if (!gotLock) {
         if (!win.isDestroyed()) win.webContents.send('session:changed', session)
       }
     })
-    await ensurePlayerBackend().catch(() => undefined)
-    // 后台同步 CLI 真实播放态与队列（mpv 可能在应用重启期间仍在播放），不阻塞首屏
-    void player.hydrate().catch(() => undefined)
+    // 启动期后台任务延后并保持串行：把首屏渲染与会话/环境探测让给前台
+    void (async () => {
+      await new Promise((resolve) => setTimeout(resolve, 600))
+      await ensurePlayerBackend().catch(() => undefined)
+      // 同步 CLI 真实播放态与队列（mpv 可能在应用重启期间仍在播放）
+      await player.hydrate().catch(() => undefined)
+    })()
   })
 
   app.on('activate', () => showWindow())

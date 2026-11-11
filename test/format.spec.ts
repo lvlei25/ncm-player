@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { artistsText, cn, coverGradient, formatCount, formatDuration, formatSeconds } from '../src/lib/format'
+import { artistsText, cn, formatCount, formatDuration, formatSeconds } from '../src/lib/format'
 
 describe('formatDuration', () => {
   it('毫秒转 m:ss', () => {
@@ -41,16 +41,6 @@ describe('artistsText', () => {
 
   it('空数组给出兜底文案', () => {
     expect(artistsText([])).toBe('未知歌手')
-  })
-})
-
-describe('coverGradient', () => {
-  it('同一个种子生成稳定渐变（不闪色）', () => {
-    expect(coverGradient('江南')).toBe(coverGradient('江南'))
-  })
-
-  it('不同种子生成不同色相', () => {
-    expect(coverGradient('江南')).not.toBe(coverGradient('富士山下'))
   })
 })
 

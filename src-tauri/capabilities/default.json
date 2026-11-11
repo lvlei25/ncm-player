@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "阶段 1 CLI 桥接的最小权限集（自定义命令无需额外权限）",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

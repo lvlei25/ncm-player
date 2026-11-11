@@ -38,7 +38,7 @@ export function TrackList({ tracks, showAlbum = true, heightClass = 'h-[calc(100
 
   return (
     <div>
-      <div className="grid grid-cols-[46px_1fr_120px_86px_76px] items-center gap-3 border-b border-white/[0.06] px-4 pb-2.5 text-[10.5px] uppercase tracking-[0.18em] text-cloud-500">
+      <div className="grid grid-cols-[46px_1fr_120px_86px_76px] items-center gap-3 border-b border-white/[0.06] px-4 pb-2.5 text-[11px] text-cloud-500">
         <span>#</span>
         <span>标题</span>
         {showAlbum ? <span className="truncate">专辑</span> : <span />}
@@ -75,22 +75,21 @@ export function TrackList({ tracks, showAlbum = true, heightClass = 'h-[calc(100
                     alt={track.name}
                     className="h-9 w-9 shrink-0"
                     rounded="rounded-md"
-                    seed={track.name}
                   />
                   <div className="min-w-0">
                     <p className={cn('truncate text-[13px]', isCurrent ? 'text-ncm-light' : 'text-cloud-100')}>
                       {track.name}
                       {!track.playable && (
-                        <span className="ml-2 rounded bg-white/10 px-1.5 py-0.5 text-[9px] text-cloud-400">不可播放</span>
+                        <span className="ml-2 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-cloud-400">不可播放</span>
                       )}
                     </p>
                     <p className="truncate text-[11px] text-cloud-500">{artistsText(track.artists)}</p>
                   </div>
                 </div>
 
-                {showAlbum ? <span className="truncate text-[11.5px] text-cloud-500">{track.album || '—'}</span> : <span />}
+                {showAlbum ? <span className="truncate text-[12px] text-cloud-500">{track.album || '—'}</span> : <span />}
 
-                <span className="text-right text-[11.5px] tabular-nums text-cloud-500">
+                <span className="text-right text-[12px] tabular-nums text-cloud-500">
                   {formatDuration(track.durationMs)}
                 </span>
 
@@ -101,7 +100,7 @@ export function TrackList({ tracks, showAlbum = true, heightClass = 'h-[calc(100
                     disabled={!track.playable}
                     onClick={() => (isCurrent ? void toggle() : void playQueue(tracks, item.index))}
                     className={cn(
-                      'flex h-7 w-7 items-center justify-center rounded-full transition',
+                      'flex h-7 w-7 items-center justify-center rounded-full transition-colors',
                       track.playable
                         ? 'text-cloud-400 hover:bg-ncm hover:text-white'
                         : 'cursor-not-allowed text-cloud-500',
@@ -115,7 +114,7 @@ export function TrackList({ tracks, showAlbum = true, heightClass = 'h-[calc(100
                     disabled={!track.playable}
                     onClick={() => void queueAdd(track)}
                     className={cn(
-                      'flex h-7 w-7 items-center justify-center rounded-full transition',
+                      'flex h-7 w-7 items-center justify-center rounded-full transition-colors',
                       track.playable
                         ? 'text-cloud-500 hover:bg-white/10 hover:text-cloud-100'
                         : 'cursor-not-allowed text-cloud-500',

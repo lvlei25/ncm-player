@@ -11,8 +11,8 @@ interface StepLoginProps {
 export function StepLogin({ loginLink, loginBusy, onStart, onRefresh, onOpenLink }: StepLoginProps) {
   return (
     <div>
-      <h1 className="text-[22px] font-semibold text-cloud-100">扫码登录网易云音乐</h1>
-      <p className="mt-2 text-[12.5px] leading-relaxed text-cloud-500">
+      <h1 className="text-[22px] font-medium text-cloud-100">扫码登录网易云音乐</h1>
+      <p className="mt-2 text-[13px] leading-relaxed text-cloud-500">
         点击生成登录链接，会调用 ncm-cli 的后台登录并在浏览器打开授权页。用网易云音乐 App 扫码后，这里会自动进入下一步。
       </p>
 
@@ -24,7 +24,7 @@ export function StepLogin({ loginLink, loginBusy, onStart, onRefresh, onOpenLink
           <p className="text-[12px] text-cloud-300">
             {loginLink ? '登录链接已生成，在浏览器完成扫码即可' : '还没有生成登录链接'}
           </p>
-          <p className="mt-1.5 break-all text-[10.5px] leading-relaxed text-cloud-500">
+          <p className="mt-1.5 break-all text-[11px] leading-relaxed text-cloud-500">
             {loginLink || '也可以直接在终端执行 ncm-cli login，本页面会自动轮询登录状态。'}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -32,7 +32,7 @@ export function StepLogin({ loginLink, loginBusy, onStart, onRefresh, onOpenLink
               type="button"
               onClick={onStart}
               disabled={loginBusy}
-              className="flex items-center gap-1.5 rounded-full bg-ncm px-3.5 py-1.5 text-[11.5px] text-white transition hover:brightness-110 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-full bg-ncm px-3.5 py-1.5 text-[12px] text-white transition-colors hover:brightness-110 disabled:opacity-50"
             >
               {loginBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <QrCode className="h-3 w-3" />}
               生成登录链接
@@ -41,7 +41,7 @@ export function StepLogin({ loginLink, loginBusy, onStart, onRefresh, onOpenLink
               <button
                 type="button"
                 onClick={() => onOpenLink(loginLink)}
-                className="flex items-center gap-1.5 rounded-full border border-white/10 px-3.5 py-1.5 text-[11.5px] text-cloud-300 transition hover:border-white/25"
+                className="flex items-center gap-1.5 rounded-full border border-white/10 px-3.5 py-1.5 text-[12px] text-cloud-300 transition-colors hover:border-white/25"
               >
                 <ExternalLink className="h-3 w-3" />
                 打开浏览器
@@ -60,7 +60,7 @@ export function StepLogin({ loginLink, loginBusy, onStart, onRefresh, onOpenLink
         <button
           type="button"
           onClick={onRefresh}
-          className="rounded-full border border-white/10 px-4 py-2 text-[12px] text-cloud-300 transition hover:border-white/20 hover:text-cloud-100"
+          className="rounded-full border border-white/10 px-4 py-2 text-[12px] text-cloud-300 transition-colors hover:border-white/20 hover:text-cloud-100"
         >
           我已扫码，刷新状态
         </button>

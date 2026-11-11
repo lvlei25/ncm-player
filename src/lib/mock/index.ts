@@ -1,5 +1,5 @@
 import type { NcmBridge } from '../../shared/api'
-import type { IpcResult, LyricPayload, PlaybackState, Track } from '../../shared/types'
+import type { IpcResult, LyricPayload, PlaybackState, PlayMode, Track } from '../../shared/types'
 import { MOCK_PLAYLISTS, MOCK_TRACKS, SAMPLE_LRC } from './data'
 
 /** 浏览器预览模式（dev:web）下的本地桥接，用于 UI 迭代与截图验收 */
@@ -12,6 +12,7 @@ let index = 3
 let status: PlaybackState['status'] = 'playing'
 let position = 46
 let volume = 68
+let playMode: PlayMode = 'order'
 const listeners = new Set<(s: PlaybackState) => void>()
 
 function snapshot(): PlaybackState {
@@ -24,6 +25,7 @@ function snapshot(): PlaybackState {
     currentIndex: index,
     queueLength: queue.length,
     current,
+    playMode,
   }
 }
 
@@ -37,8 +39,20 @@ setInterval(() => {
   position += 1
   const duration = snapshot().duration
   if (duration > 0 && position >= duration - 1) {
-    index = (index + 1) % Math.max(queue.length, 1)
-    position = 0
+    if (playMode === 'repeat-one') {
+      position = 0
+    } else if (playMode === 'order' && index >= queue.length - 1) {
+      status = 'stopped'
+      position = 0
+    } else if (playMode === 'shuffle' && queue.length > 1) {
+      let next = index
+      for (let i = 0; i < 8 && next === index; i += 1) next = Math.floor(Math.random() * queue.length)
+      index = next === index ? (index + 1) % queue.length : next
+      position = 0
+    } else {
+      index = (index + 1) % Math.max(queue.length, 1)
+      position = 0
+    }
   }
   emit()
 }, 1000)
@@ -185,6 +199,11 @@ export const mockBridge: NcmBridge = {
     },
     volume: async (level) => {
       volume = level
+      emit()
+      return ok(true)
+    },
+    setPlayMode: async (mode) => {
+      playMode = mode
       emit()
       return ok(true)
     },

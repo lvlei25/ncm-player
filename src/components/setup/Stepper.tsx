@@ -13,9 +13,9 @@ export function Stepper({ step }: { step: number }) {
           <div key={label} className="flex flex-1 items-center gap-2.5 last:flex-none">
             <span
               className={cn(
-                'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] transition',
+                'flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[11px] transition-colors',
                 done && 'border-ncm/40 bg-ncm/15 text-ncm-light',
-                active && 'border-ncm bg-ncm text-white shadow-glow',
+                active && 'border-ncm bg-ncm text-white',
                 !done && !active && 'border-white/10 text-cloud-500',
               )}
             >
@@ -23,7 +23,7 @@ export function Stepper({ step }: { step: number }) {
             </span>
             <span
               className={cn(
-                'whitespace-nowrap text-[11.5px]',
+                'whitespace-nowrap text-[12px]',
                 active ? 'text-cloud-100' : done ? 'text-cloud-400' : 'text-cloud-500',
               )}
             >

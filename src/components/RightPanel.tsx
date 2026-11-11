@@ -1,4 +1,4 @@
-import { Mic2, Sparkles, X } from 'lucide-react'
+import { MessageSquareText, Mic2, X } from 'lucide-react'
 import { cn } from '../lib/format'
 import { AiPanel } from './AiPanel'
 import { LyricPanel } from './LyricPanel'
@@ -26,7 +26,7 @@ export function RightPanel({ open, tab, onTab, onClose }: RightPanelProps) {
             {(
               [
                 { key: 'lyric' as PanelTab, label: '歌词', icon: Mic2 },
-                { key: 'ai' as PanelTab, label: 'AI 点歌', icon: Sparkles },
+                { key: 'ai' as PanelTab, label: 'AI 点歌', icon: MessageSquareText },
               ]
             ).map(({ key, label, icon: Icon }) => (
               <button
@@ -34,11 +34,11 @@ export function RightPanel({ open, tab, onTab, onClose }: RightPanelProps) {
                 type="button"
                 onClick={() => onTab(key)}
                 className={cn(
-                  'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] transition',
+                  'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] transition-colors',
                   tab === key ? 'bg-white/[0.07] text-cloud-100' : 'text-cloud-500 hover:text-cloud-300',
                 )}
               >
-                <Icon className="h-3.5 w-3.5" />
+                <Icon className="h-4 w-4" />
                 {label}
               </button>
             ))}
@@ -47,7 +47,7 @@ export function RightPanel({ open, tab, onTab, onClose }: RightPanelProps) {
             type="button"
             aria-label="收起面板"
             onClick={onClose}
-            className="text-cloud-500 transition hover:text-cloud-100"
+            className="text-cloud-500 transition-colors hover:text-cloud-100"
           >
             <X className="h-4 w-4" />
           </button>

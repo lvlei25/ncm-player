@@ -1,0 +1,47 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ncm-player-tauri",
+  "version": "0.1.0",
+  "identifier": "com.ncm.player.tauri",
+  "build": {
+    "beforeDevCommand": "npm run dev:web",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "npm run build:renderer",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "黑胶 · 网易云音乐 (Tauri)",
+        "width": 1360,
+        "height": 860,
+        "minWidth": 1024,
+        "minHeight": 640,
+        "decorations": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb", "appimage"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png",
+      "icons/icon.ico"
+    ],
+    "category": "Music",
+    "shortDescription": "Tauri 迁移验证壳",
+    "longDescription": "Tauri 阶段 1：复用现有 Vite 前端，经 Rust 桥接真实 ncm-cli 数据，并提供最小 MPRIS 服务。",
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "mpv"]
+      }
+    }
+  }
+}

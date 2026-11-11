@@ -28,14 +28,6 @@ export function artistsText(artists: string[]): string {
   return artists.length > 0 ? artists.join(' / ') : '未知歌手'
 }
 
-/** 从封面取色用于背景光晕，失败时回落到品牌红 */
-export function coverGradient(seed: string): string {
-  let hash = 0
-  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) % 360
-  const hue = hash
-  return `radial-gradient(120% 120% at 20% 0%, hsl(${hue} 62% 34% / 0.75) 0%, transparent 60%), radial-gradient(100% 100% at 85% 15%, hsl(${(hue + 48) % 360} 58% 28% / 0.6) 0%, transparent 55%)`
-}
-
 export function greeting(): string {
   const hour = new Date().getHours()
   if (hour < 6) return '夜深了'

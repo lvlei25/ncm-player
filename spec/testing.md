@@ -21,19 +21,24 @@
 └─ L1 类型与构建（tsc -b + vite build）        编译期门禁
 ```
 
-### L2 覆盖范围（自动化，69 例）
+### L2 覆盖范围（自动化，98 例）
 
 | 文件 | 被测对象 | 用例数 |
 | --- | --- | --- |
-| `test/normalize.spec.ts` | `electron/ncm/normalize.ts` 歌曲/歌单识别、字段别名、https 升级、去重 | 11 |
+| `test/normalize.spec.ts` | `electron/ncm/normalize.ts` 歌曲/歌单识别、字段别名、https 升级、去重、歌手字符串分割 | 12 |
 | `test/lyric.spec.ts` | `electron/ncm/lyric.ts` + `src/shared/lyric.ts` 解析、翻译对齐、当前行定位 | 11 |
 | `test/command-map.spec.ts` | `command-map.ts` / `discovery.ts` 命令树解析、候选回退、能力矩阵 | 13 |
-| `test/format.spec.ts` | `src/lib/format.ts` 时长/计数/取色/类名合并 | 11 |
+| `test/format.spec.ts` | `src/lib/format.ts` 时长/计数/类名合并 | 9 |
 | `test/cli-bin.spec.ts` | `cli-bin.ts` GUI 会话 PATH 回落、npm prefix、NCM_CLI_BIN 优先、真实执行 | 8 |
 | `test/playlist-tracks.spec.ts` | `catalog.ts` 歌单元数据 + `playlist tracks` 曲目合并、能力缺失降级、缓存 | 4 |
 | `test/queue-hydrate.spec.ts` | `player.ts` 队列持久化/恢复、冷启动 CLI 播放态同步 | 4 |
 | `test/player-state-sync.spec.ts` | `player.ts` 轮询按 CLI 标题同步当前曲目/时长、队列重建 | 3 |
 | `test/player-resume.spec.ts` | `player.ts` 断流自动重播、主动停止/曲末不误触发、重试上限 | 4 |
+| `test/session-cold-start.spec.ts` | `session.ts` 冷启动先渲染本地值、后台探测、会话/env 缓存与 force | 4 |
+| `test/discover-cache.spec.ts` | `catalog.ts` 发现页内存/落盘缓存、过期刷新、空结果不污染 | 5 |
+| `test/play-mode.spec.ts` | `player.ts` 四种播放模式的曲末续播、持久化、恢复与手动切歌 | 8 |
+| `test/tauri-bridge.spec.ts` | `tauriBridge.ts` 命令模板、播放态映射、IPC 契约、目录/会话/歌单链路、阶段 2 能力降级 | 10 |
+| `test/ipc-contract.spec.ts` | `ipc.ts` 外链通道结构化返回、URL 白名单、invoke 通道唯一性 | 3 |
 
 测试夹具 `test/fixtures.ts` 全部来自 **2026-11-01 真实 CLI 输出**（脱敏），
 不是照文档脑补的 schema——这正是本项目最容易出问题的地方。
@@ -66,7 +71,7 @@ NCM_DEBUG=1 npm run dev
 
 必须同时满足：
 
-1. `npm test` 全绿（69/69）
+1. `npm test` 全绿（98/98）
 2. `npx tsc -b` 零错误（含 `tsconfig.electron.json`）
 3. `npm run build` 成功
 4. 涉及 UI 的改动：`dev:web` 截图回归

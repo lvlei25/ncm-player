@@ -47,7 +47,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <button
           type="button"
           onClick={this.reset}
-          className="flex items-center gap-2 rounded-full bg-white/8 px-4 py-2 text-[12px] text-cloud-200 transition hover:bg-white/15 hover:text-white"
+          className="flex items-center gap-2 rounded-full bg-white/8 px-4 py-2 text-[12px] text-cloud-200 transition-colors hover:bg-white/15 hover:text-white"
         >
           <RotateCcw className="h-3.5 w-3.5" />
           返回首页

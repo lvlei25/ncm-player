@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CheckCircle2, CornerDownLeft, Settings2, Sparkles, XCircle } from 'lucide-react'
+import { CheckCircle2, CornerDownLeft, MessageSquareText, Settings2, XCircle } from 'lucide-react'
 import type { AiMessage, AiToolStep } from '../shared/types'
 import { api, failureText } from '../lib/api'
 import { cn } from '../lib/format'
@@ -103,19 +103,19 @@ export function AiPanel({ compact = false }: { compact?: boolean }) {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-5 pb-2 pt-4">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-3.5 w-3.5 text-ncm-light" />
-          <span className="text-[11px] uppercase tracking-[0.22em] text-cloud-500">AI 点歌</span>
+          <MessageSquareText className="h-4 w-4 text-cloud-400" />
+          <span className="text-[13px] text-cloud-100">AI 点歌</span>
           {hasKey ? (
-            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] text-emerald-400">模型已接入</span>
+            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-400">模型已接入</span>
           ) : (
-            <span className="rounded-full bg-white/5 px-2 py-0.5 text-[9px] text-cloud-500">本地理解</span>
+            <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-cloud-500">本地理解</span>
           )}
         </div>
         <button
           type="button"
           aria-label="模型设置"
           onClick={() => setShowConfig((v) => !v)}
-          className="text-cloud-500 transition hover:text-cloud-100"
+          className="text-cloud-500 transition-colors hover:text-cloud-100"
         >
           <Settings2 className="h-3.5 w-3.5" />
         </button>
@@ -145,7 +145,7 @@ export function AiPanel({ compact = false }: { compact?: boolean }) {
           <button
             type="button"
             onClick={saveConfig}
-            className="w-full rounded-lg bg-ncm/90 py-1.5 text-[11px] font-medium text-white transition hover:bg-ncm"
+            className="w-full rounded-lg bg-ncm/90 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-ncm"
           >
             保存配置
           </button>
@@ -157,7 +157,7 @@ export function AiPanel({ compact = false }: { compact?: boolean }) {
           <div key={bubble.id} className={cn('flex', bubble.role === 'user' ? 'justify-end' : 'justify-start')}>
             <div
               className={cn(
-                'max-w-[92%] rounded-2xl px-3.5 py-2.5 text-[12.5px] leading-relaxed',
+                'max-w-[92%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed',
                 bubble.role === 'user'
                   ? 'bg-ncm/90 text-white'
                   : 'border border-white/6 bg-white/[0.04] text-cloud-300',
@@ -168,7 +168,7 @@ export function AiPanel({ compact = false }: { compact?: boolean }) {
               {bubble.steps && bubble.steps.length > 0 && (
                 <ul className="mt-2 space-y-1 border-t border-white/8 pt-2">
                   {bubble.steps.map((step, i) => (
-                    <li key={`${step.tool}-${i}`} className="flex items-start gap-1.5 text-[10.5px] text-cloud-500">
+                    <li key={`${step.tool}-${i}`} className="flex items-start gap-1.5 text-[11px] text-cloud-500">
                       {step.ok ? (
                         <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-500" />
                       ) : (
@@ -205,7 +205,7 @@ export function AiPanel({ compact = false }: { compact?: boolean }) {
               key={s}
               type="button"
               onClick={() => send(s)}
-              className="rounded-full border border-white/8 px-2.5 py-1 text-[10.5px] text-cloud-400 transition hover:border-ncm/40 hover:text-cloud-100"
+              className="rounded-full border border-white/8 px-2.5 py-1 text-[11px] text-cloud-400 transition-colors hover:border-ncm/40 hover:text-cloud-100"
             >
               {s}
             </button>
@@ -219,14 +219,14 @@ export function AiPanel({ compact = false }: { compact?: boolean }) {
               if (e.key === 'Enter') send(input)
             }}
             placeholder="想听什么？告诉我"
-            className="flex-1 bg-transparent text-[12.5px] text-cloud-100 outline-none placeholder:text-cloud-500"
+            className="flex-1 bg-transparent text-[13px] text-cloud-100 outline-none placeholder:text-cloud-500"
           />
           <button
             type="button"
             aria-label="发送"
             onClick={() => send(input)}
             disabled={busy}
-            className="flex h-6 w-6 items-center justify-center rounded-md bg-ncm/90 text-white transition hover:bg-ncm disabled:opacity-40"
+            className="flex h-6 w-6 items-center justify-center rounded-md bg-ncm/90 text-white transition-colors hover:bg-ncm disabled:opacity-40"
           >
             <CornerDownLeft className="h-3 w-3" />
           </button>

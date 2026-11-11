@@ -7,6 +7,13 @@ const URL_RE = /https?:\/\/[^\s"'<>）)]+/
 
 /** 会话探测很贵（config list + login --check + user info ≈ 3.6s），缓存 60s */
 const SESSION_TTL = 60_000
+/** 环境自检要拉起 4 个进程，30s 内复用结果 */
+const ENV_TTL = 30_000
+let envCache: { value: EnvReport; at: number } | null = null
+
+export function invalidateEnvCache(): void {
+  envCache = null
+}
 
 interface CacheEntry {
   value: SessionStatus
@@ -19,6 +26,7 @@ let probing: Promise<SessionStatus> | null = null
 
 export function invalidateSession(): void {
   cache = null
+  invalidateEnvCache()
 }
 
 /** 后台探测完成后的回调，用于把「先渲染后校验」的结果推给渲染层 */
@@ -119,31 +127,33 @@ function probeOnce(): Promise<SessionStatus> {
 }
 
 export async function getSession(force = false): Promise<SessionStatus> {
-  if (!force && cache && Date.now() - cache.at < SESSION_TTL) return cache.value
+  if (force) return probeSession(true)
+  if (cache && Date.now() - cache.at < SESSION_TTL) return cache.value
 
+  // 冷启动一律先用本地持久化值渲染，真实探测放后台。
+  // 首次安装时 persisted 里还没有登录记录，原实现会同步等
+  // config list + login --check + user info（约 3.7s）才让首屏 ready。
   const persisted = loadConfig()
-  // 冷启动：先用上次探测结果渲染首屏，真实探测在后台完成后通过 listener 更正
-  if (!force && !cache && persisted.loggedIn !== undefined) {
-    const stale: SessionStatus = {
-      configured: persisted.configured ?? true,
-      loggedIn: persisted.loggedIn,
-      nickname: persisted.nickname,
-      avatarUrl: persisted.avatarUrl,
-    }
+  const stale: SessionStatus = {
+    configured: persisted.configured ?? false,
+    loggedIn: persisted.loggedIn ?? false,
+    nickname: persisted.nickname,
+    avatarUrl: persisted.avatarUrl,
+  }
+  if (!probing) {
     void probeOnce()
       .then((value) => {
         if (listener) listener(value)
       })
       .catch(() => undefined)
-    return stale
   }
-
-  if (force) return probeSession(true)
-  return probeOnce()
+  return stale
 }
 
-/** 环境自检只做本地探测，登录态直接读会话缓存 */
-export async function checkEnv(): Promise<EnvReport> {
+/** 环境自检只做本地探测，登录态直接读会话缓存；force 用于向导「重新检测」 */
+export async function checkEnv(force = false): Promise<EnvReport> {
+  if (!force && envCache && Date.now() - envCache.at < ENV_TTL) return envCache.value
+
   const [cli, mpv, node] = await Promise.all([
     execRaw(cliBin(), ['--version'], 10000),
     execRaw('mpv', ['--version'], 8000),
@@ -165,7 +175,7 @@ export async function checkEnv(): Promise<EnvReport> {
   const [major = 0, minor = 0] = nodeVersion.split('.').map(Number)
   const promptSupport = nodeOk && (major > 22 || (major === 22 && minor >= 12))
 
-  return {
+  const report: EnvReport = {
     node: { ok: nodeOk, version: nodeVersion, promptSupport },
     ncmCli: { ok: cliOk, version: versionOf(cli.stdout) },
     mpv: { ok: mpvOk, version: versionOf(mpv.stdout) },
@@ -174,6 +184,8 @@ export async function checkEnv(): Promise<EnvReport> {
     player,
     error: cliOk ? undefined : '未检测到 ncm-cli',
   }
+  envCache = { value: report, at: Date.now() }
+  return report
 }
 
 export async function setCredentials(appId: string, privateKey: string): Promise<void> {

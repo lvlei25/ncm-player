@@ -113,6 +113,41 @@
 - [x] `spec/requirements.md` 追加 R8
 - [x] README 增加测试命令与文档入口
 
+---
+
+# v0.7.0 Tauri 迁移（进行中）
+
+路线：**阶段 0** 空壳验证（Tauri 2 + zbus MPRIS 骨架）✅ → **阶段 1** Rust CLI 桥接（本轮）→ **阶段 2** 完整能力层（凭证/登录/队列/AI/持久化）→ **阶段 3** MPRIS 真实播控 + 托盘 + deb/AppImage 交付。
+
+## T16 阶段 1：Rust CLI 桥接
+
+- [x] `src-tauri/src/cli.rs`：CLI 路径解析（NCM_CLI_BIN / PATH / npm 全局 bin / nvm / volta / bun）、串行队列、超时、JSON 提取、错误码分类（8 例 Rust 单测）
+- [x] `src-tauri/src/commands.rs`：`cli_invoke` / `cli_text` / `env_check` / `app_*` 命令与白名单
+- [x] `src/lib/tauriBridge.ts`：复用 `normalize.ts` / `command-map.ts` 实现 `NcmBridge` 的目录、会话与基础播控（10 例前端单测）
+- [x] `src/lib/api.ts`：Tauri / Electron / 预览三态运行时探测
+- [x] `capabilities/default.json`、`Cargo.toml`、`package.json`、`tauri.conf.json` 同步
+- [x] 门禁：`cargo test` 8/8、`tsc -b` 零错误、`npm test` 96/96、`npm run build` 成功
+- [x] Tauri dev 实机冒烟：窗口「黑胶 · 网易云音乐 (Tauri)」、MPRIS 服务注册成功、日志出现 `[cli] recommend daily` / `playlist radar` / `state` 轮询（真实数据链路打通）
+
+---
+
+# v0.7.1 界面 polish（unslop）
+
+方向：沉静、有实体感、微暖；听音室与唱片架；黑胶是唯一亮点；沟槽与中心圆标为签名细节。
+
+- [x] 九遍顺序：spacing → color → icons → copy → type → layout → details → visuals → motion
+- [x] 删除 `coverGradient` 及其 2 个单测、`Cover` 的无用 `seed` 属性，封面缺失回落为中性底 + 唱片图标
+- [x] 门禁：`npm test` 94/94、`tsc -b` 零错误、`npm run build` 成功、lint 仅剩 1 个既有错误
+
+---
+
+# v0.7.2 契约与 lint 清理
+
+- [x] `shell:open-external` 改用统一 `handle` 包装，非 http(s) 链接拒绝打开
+- [x] `normalize.ts:44` 去掉字符组内多余转义，补歌手分割回归用例
+- [x] 新增 `test/ipc-contract.spec.ts` 3 例：结构化返回、URL 白名单、通道唯一性
+- [x] 门禁：`npm test` 98/98、`npm run lint` 零错误、`tsc -b` 零错误、`npm run build` 成功
+
 ## 后续可做（未在本轮）
 
 - `recommend daily` 单次 1.5 s 属网络耗时，可考虑首屏用上次的每日推荐做「立即渲染 + 静默刷新」

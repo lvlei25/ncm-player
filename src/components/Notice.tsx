@@ -26,7 +26,7 @@ export function Notice() {
     <div className="pointer-events-none fixed bottom-[118px] left-1/2 z-50 -translate-x-1/2">
       <div
         className={cn(
-          'glass pointer-events-auto flex items-center gap-2.5 rounded-full px-4 py-2.5 text-[12px] shadow-glass animate-fade-up',
+          'glass pointer-events-auto flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-[12px] shadow-glass animate-fade-up',
           notice.kind === 'error' && 'border-ncm/40 text-ncm-light',
           notice.kind === 'success' && 'border-emerald-500/30 text-emerald-300',
           notice.kind === 'info' && 'text-cloud-300',
@@ -38,7 +38,7 @@ export function Notice() {
           type="button"
           aria-label="关闭提示"
           onClick={() => notify(null)}
-          className="text-cloud-500 transition hover:text-cloud-100"
+          className="text-cloud-500 transition-colors hover:text-cloud-100"
         >
           <X className="h-3 w-3" />
         </button>

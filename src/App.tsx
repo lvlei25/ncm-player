@@ -7,7 +7,6 @@ import { QueueDrawer } from './components/QueueDrawer'
 import { RightPanel, type PanelTab } from './components/RightPanel'
 import { Sidebar } from './components/Sidebar'
 import { TitleBar } from './components/TitleBar'
-import { coverGradient } from './lib/format'
 import { useAppStore } from './lib/store'
 import { Discover } from './pages/Discover'
 import { NowPlaying } from './pages/NowPlaying'
@@ -51,9 +50,9 @@ export default function App() {
         <div className="flex flex-1 items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <div className="relative h-16 w-16 animate-spin-slow rounded-full border border-white/10 bg-ink-800">
-              <div className="absolute inset-6 rounded-full bg-gradient-to-br from-ncm-light to-ncm-deep" />
+              <div className="absolute inset-6 rounded-full bg-ncm" />
             </div>
-            <p className="text-[11px] tracking-[0.3em] text-cloud-500">正在连接 NCM-CLI</p>
+            <p className="text-[11px] text-cloud-500">正在连接 NCM-CLI</p>
           </div>
         </div>
       </div>
@@ -77,11 +76,7 @@ export default function App() {
 
   return (
     <div className="relative flex h-screen flex-col overflow-hidden bg-ink-950">
-      {/* 氛围背景：随封面渐变 + 模糊大图 */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-70 transition-all duration-700"
-        style={{ backgroundImage: coverGradient(current?.name ?? 'black-vinyl') }}
-      />
+      {/* 氛围背景：当前封面的模糊大图 */}
       {current?.coverUrl && (
         <img
           src={current.coverUrl}

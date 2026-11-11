@@ -40,6 +40,13 @@ describe('normalize.harvest / 歌曲', () => {
     expect(result.playlists).toHaveLength(0)
   })
 
+  it('歌手字符串按斜杠、顿号、逗号与 & 分割', () => {
+    const { tracks } = harvest({
+      data: [{ id: 'X'.repeat(32), name: '合唱', artists: '张三 / 李四、王五,赵六&钱七', duration: 200000 }],
+    })
+    expect(tracks[0].artists).toEqual(['张三', '李四', '王五', '赵六', '钱七'])
+  })
+
   it('duration 以毫秒原样保留（大于 10000 视为 ms）', () => {
     const { tracks } = harvest({ data: [{ id: 'X'.repeat(32), name: '短', duration: 5 }] })
     expect(tracks[0].durationMs).toBe(5000)

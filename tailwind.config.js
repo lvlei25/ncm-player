@@ -39,17 +39,12 @@ export default {
         '4xl': '2rem',
       },
       boxShadow: {
-        glow: '0 0 60px -12px rgba(236, 65, 65, 0.45)',
         glass: '0 24px 60px -24px rgba(0, 0, 0, 0.9)',
       },
       keyframes: {
         'spin-slow': {
           from: { transform: 'rotate(0deg)' },
           to: { transform: 'rotate(360deg)' },
-        },
-        breathe: {
-          '0%, 100%': { opacity: '0.55', transform: 'scale(1)' },
-          '50%': { opacity: '0.9', transform: 'scale(1.04)' },
         },
         'fade-up': {
           from: { opacity: '0', transform: 'translateY(12px)' },
@@ -62,7 +57,6 @@ export default {
       },
       animation: {
         'spin-slow': 'spin-slow 20s linear infinite',
-        breathe: 'breathe 6s ease-in-out infinite',
         'fade-up': 'fade-up 420ms cubic-bezier(0.22, 1, 0.36, 1) both',
         'bar-dance': 'bar-dance 900ms ease-in-out infinite',
       },

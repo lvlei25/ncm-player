@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { PLAY_MODES } from '../shared/types'
 import type { EnvReport, PlaybackState, QueueSnapshot, SessionStatus, Track } from '../shared/types'
 import { api, failureText } from './api'
 
@@ -19,10 +20,11 @@ interface AppState {
   queueLoaded: boolean
 
   bootstrap: () => Promise<void>
-  refreshEnv: () => Promise<void>
+  refreshEnv: (force?: boolean) => Promise<void>
   refreshSession: (force?: boolean) => Promise<void>
   refreshQueue: () => Promise<void>
   setPlayback: (state: PlaybackState) => void
+  cyclePlayMode: () => Promise<void>
   notify: (notice: Notice | null) => void
 
   toggle: () => Promise<void>
@@ -47,6 +49,7 @@ const EMPTY_PLAYBACK: PlaybackState = {
   currentIndex: -1,
   queueLength: 0,
   current: null,
+  playMode: 'order',
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -86,8 +89,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     void get().refreshEnv()
   },
 
-  refreshEnv: async () => {
-    const res = await api.env.check()
+  refreshEnv: async (force = false) => {
+    const res = await api.env.check(force)
     set({ env: res.ok ? res.data : null })
   },
 
@@ -103,6 +106,19 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setPlayback: (state) => set({ playback: state }),
   notify: (notice) => set({ notice }),
+
+  cyclePlayMode: async () => {
+    const current = get().playback.playMode ?? 'order'
+    const next = PLAY_MODES[(PLAY_MODES.indexOf(current) + 1) % PLAY_MODES.length]
+    // 乐观更新，主进程随后会通过 player:state-changed 再推一次
+    set({ playback: { ...get().playback, playMode: next } })
+    const res = await api.player.setPlayMode(next)
+    const err = failureText(res)
+    if (err) {
+      set({ playback: { ...get().playback, playMode: current } })
+      get().notify({ kind: 'error', text: err })
+    }
+  },
 
   toggle: async () => {
     const res = await api.player.toggle()

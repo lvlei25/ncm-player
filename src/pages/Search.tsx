@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Search as SearchIcon, Sparkles } from 'lucide-react'
+import { Loader2, Search as SearchIcon } from 'lucide-react'
 import type { Playlist, SearchType, Track } from '../shared/types'
 import { Cover } from '../components/Cover'
 import { TrackList } from '../components/TrackList'
@@ -66,10 +66,10 @@ export function Search() {
   return (
     <div className="animate-fade-up px-8 pb-10 pt-7">
       <header className="mx-auto max-w-[880px]">
-        <p className="text-[11px] uppercase tracking-[0.3em] text-cloud-500">search</p>
-        <h1 className="mt-2 text-[26px] font-semibold text-cloud-100">搜索音乐</h1>
+        <p className="text-[12px] text-cloud-500">搜索</p>
+        <h1 className="mt-2 text-[26px] font-medium text-cloud-100">搜索音乐</h1>
 
-        <div className="mt-5 flex items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 transition focus-within:border-ncm/50 focus-within:shadow-glow">
+        <div className="mt-5 flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 transition-colors focus-within:border-ncm/50">
           <SearchIcon className="h-4 w-4 shrink-0 text-cloud-500" />
           <input
             ref={inputRef}
@@ -88,7 +88,7 @@ export function Search() {
               type="button"
               onClick={() => setTab(item.key)}
               className={cn(
-                'rounded-full px-3.5 py-1.5 text-[12px] transition',
+                'rounded-lg px-3.5 py-1.5 text-[12px] transition-colors',
                 tab === item.key
                   ? 'bg-ncm/15 text-ncm-light'
                   : 'text-cloud-500 hover:bg-white/5 hover:text-cloud-300',
@@ -104,7 +104,7 @@ export function Search() {
         {!keyword.trim() && (
           <div className="flex flex-col items-center gap-6 py-16">
             <div className="relative h-24 w-24 rounded-full bg-ink-800 vinyl-grooves">
-              <div className="absolute inset-8 rounded-full bg-gradient-to-br from-ncm-light to-ncm-deep" />
+              <div className="absolute inset-8 rounded-full bg-ncm" />
               <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink-950" />
             </div>
             <div className="text-center">
@@ -115,9 +115,9 @@ export function Search() {
                     key={s}
                     type="button"
                     onClick={() => setKeyword(s)}
-                    className="flex items-center gap-1 rounded-full border border-white/8 px-3 py-1.5 text-[11.5px] text-cloud-400 transition hover:border-ncm/40 hover:text-cloud-100"
+                    className="rounded-lg border border-white/8 px-3 py-1.5 text-[12px] text-cloud-400 transition-colors hover:border-ncm/40 hover:text-cloud-100"
                   >
-                    <Sparkles className="h-3 w-3 text-ncm/70" />
+
                     {s}
                   </button>
                 ))}
@@ -136,8 +136,8 @@ export function Search() {
         {tab !== 'playlist' && tracks.length > 0 && (
           <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-2">
             <div className="flex items-center justify-between px-3 pb-1 pt-2">
-              <p className="text-[11.5px] text-cloud-400">单曲 · {tracks.length} 首</p>
-              <p className="text-[10.5px] text-cloud-500">点击播放，或加入队列</p>
+              <p className="text-[12px] text-cloud-400">单曲 · {tracks.length} 首</p>
+              <p className="text-[11px] text-cloud-500">点击播放，或加入队列</p>
             </div>
             <TrackList tracks={tracks} heightClass="h-[calc(100vh-420px)]" />
           </div>
@@ -145,20 +145,19 @@ export function Search() {
 
         {playlists.length > 0 && (
           <div className={cn(tab === 'playlist' ? 'mt-0' : 'mt-7')}>
-            <p className="mb-3 text-[11.5px] text-cloud-400">歌单 · {playlists.length} 个</p>
+            <p className="mb-3 text-[12px] text-cloud-400">歌单 · {playlists.length} 个</p>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
               {playlists.map((playlist) => (
                 <Link
                   key={playlist.id}
                   to={`/playlist/${playlist.id}`}
-                  className="group flex items-center gap-3 rounded-xl border border-white/6 bg-white/[0.02] p-2.5 transition hover:border-white/12 hover:bg-white/[0.05]"
+                  className="group flex items-center gap-3 rounded-xl border border-white/6 bg-white/[0.02] p-2.5 transition-colors hover:border-white/12 hover:bg-white/[0.05]"
                 >
                   <Cover
                     src={playlist.coverUrl}
                     alt={playlist.name}
                     className="h-12 w-12 shrink-0"
                     rounded="rounded-lg"
-                    seed={playlist.name}
                   />
                   <div className="min-w-0">
                     <p className="truncate text-[12px] text-cloud-100">{playlist.name}</p>

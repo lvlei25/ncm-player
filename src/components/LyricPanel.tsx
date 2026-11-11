@@ -45,7 +45,7 @@ export function LyricPanel({ variant = 'panel' }: LyricPanelProps) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-cloud-500">
         <Music4 className="h-7 w-7" />
-        <p className="text-xs tracking-wide">播放一首歌，这里就会浮现歌词</p>
+        <p className="text-xs">播放一首歌，这里就会浮现歌词</p>
       </div>
     )
   }
@@ -56,8 +56,8 @@ export function LyricPanel({ variant = 'panel' }: LyricPanelProps) {
         {[76, 58, 90, 64, 82].map((w, i) => (
           <div
             key={i}
-            className="h-3 animate-pulse rounded-full bg-white/[0.06]"
-            style={{ width: `${w}%`, animationDelay: `${i * 120}ms` }}
+            className="h-3 rounded-full bg-white/[0.06]"
+            style={{ width: `${w}%` }}
           />
         ))}
       </div>
@@ -96,15 +96,15 @@ export function LyricPanel({ variant = 'panel' }: LyricPanelProps) {
               data-line={i}
               onClick={() => void seek(line.timeMs / 1000)}
               className={cn(
-                'transition-all duration-500',
+                'transition-colors duration-300',
                 isStage ? 'text-center' : 'origin-left text-left',
                 active
                   ? isStage
-                    ? 'text-[26px] font-medium leading-relaxed text-white drop-shadow-[0_0_18px_rgba(255,255,255,0.32)]'
+                    ? 'text-[26px] font-medium leading-relaxed text-white'
                     : 'text-[15px] font-medium leading-relaxed text-white'
                   : 'text-cloud-500 hover:text-cloud-300',
                 !active && isStage && (distance === 1 ? 'text-[17px]' : 'text-[15px]'),
-                !active && !isStage && 'text-[12.5px]',
+                !active && !isStage && 'text-[13px]',
                 !active && distance > 3 && 'opacity-45',
               )}
             >

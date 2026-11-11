@@ -32,6 +32,8 @@ const searchSchema = z.object({
 
 const lyricsSchema = z.object({ songId: z.string().min(1) })
 
+const playModeSchema = z.enum(['order', 'repeat-all', 'repeat-one', 'shuffle'])
+
 const chatSchema = z.object({
   messages: z
     .array(
@@ -75,7 +77,7 @@ function requireTrack(value: unknown): Track {
 }
 
 export function registerIpc(): void {
-  handle('env:check', () => checkEnv())
+  handle('env:check', (force?: boolean) => checkEnv(Boolean(force)))
   handle('session:status', (force?: boolean) => getSession(Boolean(force)))
   handle('session:save', (appId: string, privateKey: string) => setCredentials(appId, privateKey))
   handle('session:login-start', () => startLogin())
@@ -114,6 +116,10 @@ export function registerIpc(): void {
   handle('player:seek', (seconds: number) => player.seek(Number(seconds)).then(() => true))
   handle('player:volume', (level: number) => {
     player.setVolume(Number(level))
+    return true
+  })
+  handle('player:play-mode', (mode: unknown) => {
+    player.setPlayMode(playModeSchema.parse(mode))
     return true
   })
   handle('player:queue-add', (track: unknown, next: boolean) =>
@@ -160,8 +166,10 @@ export function registerIpc(): void {
     return true
   })
 
-  ipcMain.handle('shell:open-external', async (_e, url: string) => {
-    if (/^https?:\/\//i.test(url)) await shell.openExternal(url)
+  // 与其余通道一样走统一包装，返回 IpcResult<boolean> 而不是裸 boolean
+  handle('shell:open-external', async (url: unknown) => {
+    const target = typeof url === 'string' ? url : ''
+    if (/^https?:\/\//i.test(target)) await shell.openExternal(target)
     return true
   })
 

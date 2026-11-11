@@ -9,6 +9,7 @@ import type {
   LoginTicket,
   LyricPayload,
   PlaybackState,
+  PlayMode,
   Playlist,
   QueueSnapshot,
   SearchResult,
@@ -22,7 +23,7 @@ const invoke = <T>(channel: string, ...args: unknown[]): Promise<IpcResult<T>> =
 
 const api = {
   env: {
-    check: () => invoke<EnvReport>('env:check'),
+    check: (force?: boolean) => invoke<EnvReport>('env:check', force),
   },
   session: {
     status: (force?: boolean) => invoke<SessionStatus>('session:status', force),
@@ -54,6 +55,7 @@ const api = {
     prev: () => invoke<boolean>('player:prev'),
     seek: (seconds: number) => invoke<boolean>('player:seek', seconds),
     volume: (level: number) => invoke<boolean>('player:volume', level),
+    setPlayMode: (mode: PlayMode) => invoke<boolean>('player:play-mode', mode),
     queueAdd: (track: Track, next = false) => invoke<boolean>('player:queue-add', track, next),
     queueClear: () => invoke<boolean>('player:queue-clear'),
     queueRemove: (index: number) => invoke<boolean>('player:queue-remove', index),

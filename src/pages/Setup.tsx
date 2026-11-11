@@ -77,7 +77,7 @@ export function Setup({ env, session, onDone }: SetupProps) {
         }
         notify({ kind: 'success', text: '凭证已写入 ncm-cli 配置' })
         setPrivateKey('')
-        return Promise.all([refreshSession(), refreshEnv()])
+        return Promise.all([refreshSession(), refreshEnv(true)])
       })
       .catch((error) => console.error('[setup]', error))
       .finally(() => setSaving(false))
@@ -105,17 +105,16 @@ export function Setup({ env, session, onDone }: SetupProps) {
 
   return (
     <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-y-auto bg-ink-950 px-6 py-10">
-      <div className="pointer-events-none absolute left-1/2 top-0 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-ncm/10 blur-[120px]" />
 
       <div className="relative w-full max-w-[720px]">
         <div className="mb-9 flex items-center gap-3.5">
           <div className="relative h-11 w-11 animate-spin-slow rounded-full bg-ink-800 vinyl-grooves ring-1 ring-white/10">
-            <div className="absolute inset-[30%] rounded-full bg-gradient-to-br from-ncm-light to-ncm-deep" />
+            <div className="absolute inset-[30%] rounded-full bg-ncm" />
             <div className="absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink-950" />
           </div>
           <div>
-            <p className="text-[15px] font-semibold tracking-[0.18em] text-cloud-100">黑胶</p>
-            <p className="mt-0.5 text-[10.5px] tracking-wide text-cloud-500">
+            <p className="text-[16px] font-medium text-cloud-100">黑胶</p>
+            <p className="mt-0.5 text-[11px] text-cloud-500">
               网易云音乐桌面播放器 · 首次配置向导
             </p>
           </div>
@@ -131,7 +130,7 @@ export function Setup({ env, session, onDone }: SetupProps) {
               envOk={envOk}
               copied={copied}
               onCopy={copy}
-              onRefresh={() => void refreshEnv()}
+              onRefresh={() => void refreshEnv(true)}
               onNext={() => void refreshSession()}
             />
           )}
@@ -169,7 +168,7 @@ export function Setup({ env, session, onDone }: SetupProps) {
           )}
         </div>
 
-        <p className="mt-5 flex items-center justify-center gap-1.5 text-[10.5px] text-cloud-500">
+        <p className="mt-5 flex items-center justify-center gap-1.5 text-[11px] text-cloud-500">
           <Terminal className="h-3 w-3" />
           所有命令均在主进程以 ncm-cli 参数数组方式执行，凭证不会经过渲染层
         </p>

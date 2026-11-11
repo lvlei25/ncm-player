@@ -1,7 +1,7 @@
 import { app, safeStorage } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
-import type { Track } from '../src/shared/types'
+import type { Playlist, PlayMode, Track } from '../src/shared/types'
 
 export interface AppConfig {
   /** AI 模型配置（apiKey 单独加密存储） */
@@ -18,13 +18,18 @@ export interface AppConfig {
   /** 上次探测到的登录状态，用于冷启动「先渲染后校验」 */
   loggedIn?: boolean
   configured?: boolean
-  /** 播放模式 */
-  playMode: 'order' | 'repeat-one' | 'shuffle'
+  /** 播放模式（顺序 / 列表循环 / 单曲循环 / 随机） */
+  playMode: PlayMode
   /** 运行期命令覆盖（能力 → argv） */
   commandOverrides: Record<string, string[]>
   /** 播放队列镜像：应用重启后恢复，避免队列抽屉空白 */
   queueTracks?: Track[]
   queueIndex?: number
+  /** 发现页缓存：冷启动先渲染上次结果，避免每次启动都等两次网络 CLI */
+  discoverDaily?: Track[]
+  discoverDailyAt?: number
+  discoverPlaylists?: Playlist[]
+  discoverPlaylistsAt?: number
 }
 
 const DEFAULTS: AppConfig = {

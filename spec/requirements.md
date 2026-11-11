@@ -107,6 +107,31 @@
 - 关闭窗口 = 退出并停播；最小化 = 进程存活、播放继续（后台播放仍可用）
 - 验收：播放中用 Alt+F4 关闭，`ps` 中 Electron 进程为 0 且 `ncm-cli state` 为 stopped
 
+## 3.3 追加需求 R10（v0.7.0）：Tauri 阶段 1 —— Rust CLI 桥接
+
+- Tauri 壳（阶段 0）必须能在**不启动 Electron** 的情况下读取真实 `ncm-cli` 数据：环境自检、会话状态、每日推荐、推荐歌单、搜索、歌单详情与歌词。
+- 前端继续复用 `NcmBridge` 契约与 `src/shared/types.ts`；运行时自动识别 Electron / Tauri / 纯浏览器预览三种环境。
+- Rust 侧统一串行执行 CLI：参数以数组传递（不经过 shell）、首命令白名单校验、25 s 超时、JSON 提取与错误码分类与 Electron 版 `runner.ts` 等价。
+- GUI 会话 PATH 缺 npm 全局 bin 时，回落到 `~/.npm-global/bin` 等常见位置（与 `electron/ncm/cli-bin.ts` 等价）。
+- 归一化逻辑复用现有纯 TS 模块（`normalize.ts` / `command-map.ts` / `shared/lyric.ts`），不在 Rust 侧重复实现。
+- 阶段 1 明确不做：凭证加密存储、扫码登录、AI 点歌、队列持久化、自动续播、MPRIS 真实播控（留阶段 2/3）。
+- 验收：`cargo test` 通过、`npx tsc -b` 零错误、`npm test` ≥ 86 例、`npm run build` 成功；Tauri dev 下环境自检三行全绿、发现页显示真实每日推荐。
+
+## 3.4 追加需求 R11（v0.7.1）：界面去装饰化 polish
+
+- 保留既有品牌与视觉：`ink`/`cloud` 中性色阶、网易云红 `#EC4141`、Source Han Sans SC、黑胶唱片沟槽与旋转、页面结构与顺序。
+- 移除装饰痕迹：彩色发光阴影、按钮/进度条渐变、玻璃拟态渐变、封面缺失时的随机彩色光晕、黑胶背后的红色光晕、`NEW` 徽标、Sparkles 图标、大写宽字距英文标签。
+- 文案改为具体中文短标签；字号归一到 11/12/13/14/16/20/24/30，去掉小字号宽字距；控件半径按层级收敛。
+- 动效只保留有语义的（黑胶旋转、播放音柱、一次入场淡入），删除循环 pulse、hover 放大与 `transition-all`。
+- 验收：`npm test` 全绿、`tsc -b` 零错误、`npm run build` 成功；重新截图比对发现页与全屏页，审计清单中的迹象全部消失；deb 覆盖安装后渲染层正常。
+
+## 3.5 追加需求 R12（v0.7.2）：IPC 契约与 lint 清理
+
+- `shell:open-external` 必须与其余通道一致返回 `IpcResult<boolean>`，且只允许 http(s) 链接交给系统浏览器。
+- 所有 `ipcMain.handle` 通道必须经统一包装注册，不得重复注册。
+- 去掉字符组内多余转义后，歌手字符串仍按 `/`、`、`、`,`、`&` 正确分割。
+- 验收：`npm test` 全绿、`npm run lint` 零错误、`tsc -b` 零错误；安装版中 `window.ncm.app.openExternal` 返回结构化结果。
+
 ## 4. 验收结果（实测）
 
 | 指标 | 改动前 | 改动后 | 结论 |

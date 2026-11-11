@@ -3,6 +3,7 @@ import { getCommandTree, resolveCommand, specExists } from './discovery'
 import { extractLyricPayload } from './lyric'
 import { dedupePlaylists, dedupeTracks, harvest, normalizeSearch } from './normalize'
 import { runCli } from './runner'
+import { loadConfig, saveConfig } from '../store'
 
 /** 轻量 LRU：降低 CLI 冷启动与开放平台配额消耗 */
 class Lru<T> {
@@ -35,6 +36,14 @@ class Lru<T> {
 const searchCache = new Lru<SearchResult>(50)
 const lyricCache = new Lru<LyricPayload>(30, 30 * 60_000)
 const playlistCache = new Lru<{ playlist: Playlist | null; tracks: Track[] }>(30)
+/** 发现页数据在进程内缓存，并落盘供冷启动复用（每日推荐一天一变，30 分钟足够新鲜） */
+const DISCOVER_TTL = 30 * 60_000
+const dailyCache = new Lru<Track[]>(4, DISCOVER_TTL)
+const playlistsCache = new Lru<Playlist[]>(4, DISCOVER_TTL)
+
+function freshPersisted(at?: number): boolean {
+  return typeof at === 'number' && at > 0 && Date.now() - at < DISCOVER_TTL
+}
 
 const CAP_BY_TYPE: Record<SearchType, 'searchSong' | 'searchArtist' | 'searchAlbum' | 'searchPlaylist'> = {
   song: 'searchSong',
@@ -71,6 +80,15 @@ export async function search(type: SearchType, keyword: string): Promise<SearchR
 }
 
 export async function getDailyRecommend(): Promise<Track[]> {
+  const mem = dailyCache.get('daily')
+  if (mem) return mem
+
+  const saved = loadConfig()
+  if (freshPersisted(saved.discoverDailyAt) && saved.discoverDaily?.length) {
+    dailyCache.set('daily', saved.discoverDaily)
+    return saved.discoverDaily
+  }
+
   const tree = await getCommandTree()
   const cmd = resolveCommand('dailyRecommend', {}, tree)
   const argv = [...cmd.argv]
@@ -78,10 +96,24 @@ export async function getDailyRecommend(): Promise<Track[]> {
 
   const { json } = await runCli(argv)
   const { tracks } = harvest(json ?? {})
-  return dedupeTracks(tracks)
+  const result = dedupeTracks(tracks)
+  if (result.length) {
+    dailyCache.set('daily', result)
+    saveConfig({ discoverDaily: result, discoverDailyAt: Date.now() })
+  }
+  return result
 }
 
 export async function getRecommendedPlaylists(): Promise<Playlist[]> {
+  const mem = playlistsCache.get('playlists')
+  if (mem) return mem
+
+  const saved = loadConfig()
+  if (freshPersisted(saved.discoverPlaylistsAt) && saved.discoverPlaylists?.length) {
+    playlistsCache.set('playlists', saved.discoverPlaylists)
+    return saved.discoverPlaylists
+  }
+
   const tree = await getCommandTree()
   const cmd = resolveCommand('recommendPlaylists', {}, tree)
   const argv = [...cmd.argv]
@@ -89,7 +121,12 @@ export async function getRecommendedPlaylists(): Promise<Playlist[]> {
 
   const { json } = await runCli(argv)
   const { playlists } = harvest(json ?? {})
-  return dedupePlaylists(playlists)
+  const result = dedupePlaylists(playlists)
+  if (result.length) {
+    playlistsCache.set('playlists', result)
+    saveConfig({ discoverPlaylists: result, discoverPlaylistsAt: Date.now() })
+  }
+  return result
 }
 
 export async function getPlaylistDetail(playlistId: string): Promise<{ playlist: Playlist | null; tracks: Track[] }> {

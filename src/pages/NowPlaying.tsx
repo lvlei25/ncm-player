@@ -18,12 +18,12 @@ export function NowPlaying() {
         <button
           type="button"
           onClick={() => navigate('/')}
-          className="flex items-center gap-1.5 text-[11.5px] text-cloud-500 transition hover:text-cloud-100"
+          className="flex items-center gap-1.5 text-[12px] text-cloud-500 transition-colors hover:text-cloud-100"
         >
           <ChevronDown className="h-4 w-4" />
           收起播放页
         </button>
-        <p className="text-[10.5px] uppercase tracking-[0.3em] text-cloud-500">now playing</p>
+        <p className="text-[12px] text-cloud-500">正在播放</p>
       </div>
 
       <div className="flex min-h-0 flex-1 items-center gap-10 px-10 pb-4">
@@ -43,17 +43,15 @@ export function NowPlaying() {
                   alt={track?.name ?? '暂无播放'}
                   className="h-full w-full"
                   rounded="rounded-full"
-                  seed={track?.name ?? 'vinyl'}
                 />
               </div>
               <div className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink-950 ring-2 ring-white/15" />
             </div>
-            <div className="pointer-events-none absolute -inset-8 rounded-full bg-ncm/10 blur-3xl" />
           </div>
 
           <div className="mt-8 w-full max-w-[420px] text-center">
-            <h1 className="truncate text-[21px] font-semibold text-cloud-100">{track?.name ?? '暂无播放'}</h1>
-            <p className="mt-1.5 truncate text-[12.5px] text-cloud-500">
+            <h1 className="truncate text-[20px] font-medium text-cloud-100">{track?.name ?? '暂无播放'}</h1>
+            <p className="mt-1.5 truncate text-[13px] text-cloud-500">
               {track ? artistsText(track.artists) : '从搜索或推荐里挑一首'}
             </p>
             {track?.album && <p className="mt-1 truncate text-[11px] text-cloud-500/80">《{track.album}》</p>}
@@ -63,7 +61,7 @@ export function NowPlaying() {
                 type="button"
                 aria-label="上一首"
                 onClick={() => void prev()}
-                className="text-cloud-300 transition hover:text-white active:scale-95"
+                className="text-cloud-300 transition-colors hover:text-white active:scale-95"
               >
                 <SkipBack className="h-6 w-6 fill-current" />
               </button>
@@ -71,7 +69,7 @@ export function NowPlaying() {
                 type="button"
                 aria-label={playing ? '暂停' : '播放'}
                 onClick={() => void toggle()}
-                className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-ink-950 shadow-2xl transition hover:scale-105 active:scale-95"
+                className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-ink-950 transition-colors hover:bg-cloud-300 active:scale-95"
               >
                 {playing ? <Pause className="h-6 w-6 fill-current" /> : <Play className="ml-0.5 h-6 w-6 fill-current" />}
               </button>
@@ -79,14 +77,14 @@ export function NowPlaying() {
                 type="button"
                 aria-label="下一首"
                 onClick={() => void next()}
-                className="text-cloud-300 transition hover:text-white active:scale-95"
+                className="text-cloud-300 transition-colors hover:text-white active:scale-95"
               >
                 <SkipForward className="h-6 w-6 fill-current" />
               </button>
               <button
                 type="button"
                 aria-label="喜欢"
-                className="ml-2 text-cloud-500 transition hover:text-ncm"
+                className="ml-2 text-cloud-500 transition-colors hover:text-ncm"
               >
                 <Heart className="h-5 w-5" />
               </button>

@@ -1,4 +1,5 @@
-import type { PlaybackState, PlaybackStatus, QueueSnapshot, Track } from '../../src/shared/types'
+import { PLAY_MODES } from '../../src/shared/types'
+import type { PlaybackState, PlaybackStatus, PlayMode, QueueSnapshot, Track } from '../../src/shared/types'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -50,6 +51,8 @@ class Player {
   private stoppedSince = 0
   private recoverAttempts = 0
   private lastRecoverAt = 0
+  /** 播放模式：影响曲末自动续播与随机切歌 */
+  private playMode: PlayMode = 'order'
 
   /** 每次重新下发播放时复位恢复状态 */
   private markPlaybackStart(): void {
@@ -62,6 +65,7 @@ class Player {
   constructor() {
     // 队列镜像是内存态，重启后从应用配置恢复，避免抽屉空白
     const saved = loadConfig()
+    if (PLAY_MODES.includes(saved.playMode)) this.playMode = saved.playMode
     if (Array.isArray(saved.queueTracks)) {
       this.tracks = saved.queueTracks.filter((t) => t && typeof t.id === 'string')
       const savedIndex = typeof saved.queueIndex === 'number' ? saved.queueIndex : -1
@@ -94,7 +98,15 @@ class Player {
       currentIndex: this.index,
       queueLength: this.tracks.length,
       current: this.current(),
+      playMode: this.playMode,
     }
+  }
+
+  setPlayMode(mode: PlayMode): void {
+    if (!PLAY_MODES.includes(mode) || mode === this.playMode) return
+    this.playMode = mode
+    saveConfig({ playMode: mode })
+    this.emit()
   }
 
   current(): Track | null {
@@ -188,8 +200,41 @@ class Player {
 
   async step(delta: 1 | -1): Promise<void> {
     if (this.tracks.length === 0) return
-    const nextIndex = (this.index + delta + this.tracks.length) % this.tracks.length
+    // 手动切歌：随机模式下随机挑一首，其余（含单曲循环）仍按顺序切
+    const nextIndex =
+      this.playMode === 'shuffle' && this.tracks.length > 1
+        ? this.randomIndex()
+        : (this.index + delta + this.tracks.length) % this.tracks.length
     await this.playAt(nextIndex)
+  }
+
+  /** 随机取一首，尽量避免与当前重复；固定随机源也不会死循环 */
+  private randomIndex(): number {
+    if (this.tracks.length <= 1) return Math.max(this.index, 0)
+    let next = this.index
+    for (let i = 0; i < 8 && next === this.index; i += 1) {
+      next = Math.floor(Math.random() * this.tracks.length)
+    }
+    return next === this.index ? (this.index + 1) % this.tracks.length : next
+  }
+
+  /** 曲末自动续播：按播放模式决定下一首、重播或停止 */
+  private async advance(): Promise<void> {
+    if (this.tracks.length === 0) return
+    switch (this.playMode) {
+      case 'repeat-one':
+        await this.playAt(Math.max(this.index, 0))
+        return
+      case 'shuffle':
+        await this.playAt(this.randomIndex())
+        return
+      case 'repeat-all':
+        await this.playAt((this.index + 1) % this.tracks.length)
+        return
+      default:
+        if (this.index < this.tracks.length - 1) await this.playAt(this.index + 1)
+        else await this.stop()
+    }
   }
 
   async seek(seconds: number): Promise<void> {
@@ -412,10 +457,10 @@ class Player {
       if (stopPolling && !inGrace) this.stopTimerOnly()
       this.emit()
 
-      // 自动续播：CLI 已切歌时不再重复下发 play
+      // 自动续播：CLI 已切歌时不再重复下发 play；下一首由播放模式决定
       if (mapped === 'playing' && !trackChanged && !needsQueueSync && this.duration > 0 && this.position >= this.duration - 1.2 && !this.advancing) {
         this.advancing = true
-        await this.step(1)
+        await this.advance()
         this.advancing = false
       }
 

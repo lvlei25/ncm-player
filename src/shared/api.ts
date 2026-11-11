@@ -8,6 +8,7 @@ import type {
   LoginTicket,
   LyricPayload,
   PlaybackState,
+  PlayMode,
   Playlist,
   QueueSnapshot,
   SearchResult,
@@ -19,7 +20,8 @@ import type {
 /** 预加载脚本暴露给渲染层的桥接契约（主进程与 mock 都要实现它） */
 export interface NcmBridge {
   env: {
-    check: () => Promise<IpcResult<EnvReport>>
+    /** force=true 跳过 30s 环境自检缓存（向导「重新检测」） */
+    check: (force?: boolean) => Promise<IpcResult<EnvReport>>
   }
   session: {
     /** force=true 绕过 60s 会话缓存（用户显式点刷新时用） */
@@ -48,6 +50,7 @@ export interface NcmBridge {
     prev: () => Promise<IpcResult<boolean>>
     seek: (seconds: number) => Promise<IpcResult<boolean>>
     volume: (level: number) => Promise<IpcResult<boolean>>
+    setPlayMode: (mode: PlayMode) => Promise<IpcResult<boolean>>
     queueAdd: (track: Track, next?: boolean) => Promise<IpcResult<boolean>>
     queueClear: () => Promise<IpcResult<boolean>>
     queueRemove: (index: number) => Promise<IpcResult<boolean>>

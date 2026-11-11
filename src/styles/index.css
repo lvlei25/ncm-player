@@ -42,24 +42,27 @@
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(236, 65, 65, 0.45);
+    background: rgba(255, 255, 255, 0.16);
   }
 
   button {
     -webkit-app-region: no-drag;
   }
+
+  :focus-visible {
+    outline: 2px solid #ec4141;
+    outline-offset: 2px;
+  }
 }
 
 @layer components {
   .glass {
-    background: linear-gradient(160deg, rgba(28, 28, 34, 0.82) 0%, rgba(11, 11, 15, 0.88) 100%);
-    backdrop-filter: blur(28px) saturate(140%);
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(11, 11, 15, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   .glass-soft {
     background: rgba(255, 255, 255, 0.035);
-    backdrop-filter: blur(18px);
     border: 1px solid rgba(255, 255, 255, 0.06);
   }
 
@@ -97,12 +100,7 @@ input[type='range'].slider::-webkit-slider-thumb {
   height: 8px;
   border-radius: 50%;
   background: #ec4141;
-  box-shadow: 0 0 0 2px rgba(236, 65, 65, 0.18);
-  transition: transform 160ms ease;
-}
-
-input[type='range'].slider:hover::-webkit-slider-thumb {
-  transform: scale(1.15);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12);
 }
 
 input[type='range'].slider::-moz-range-thumb {

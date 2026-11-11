@@ -1,13 +1,16 @@
 import type { NcmBridge } from '../shared/api'
 import type { IpcFailure, IpcResult } from '../shared/types'
 import { mockBridge } from './mock'
+import { tauriBridge } from './tauriBridge'
 
 const desktop = (window as unknown as { ncm?: NcmBridge }).ncm
+const isTauri =
+  typeof (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== 'undefined'
 
-/** Electron 下走 IPC 桥；纯浏览器预览（dev:web）自动降级为 mock，便于 UI 验收 */
-export const isDesktop = Boolean(desktop)
-export const api: NcmBridge = desktop ?? mockBridge
-export const runtimeMode = isDesktop ? 'desktop' : 'preview'
+/** Electron 走 IPC 桥，Tauri 走 Rust 命令桥，纯浏览器预览降级为 mock */
+export const isDesktop = Boolean(desktop) || isTauri
+export const api: NcmBridge = desktop ?? (isTauri ? tauriBridge : mockBridge)
+export const runtimeMode = desktop ? 'desktop' : isTauri ? 'tauri' : 'preview'
 
 export class BridgeError extends Error {
   code: IpcFailure['code']
