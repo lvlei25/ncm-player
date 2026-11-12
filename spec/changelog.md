@@ -2,6 +2,21 @@
 
 倒序记录，最新在最上。每条包含：变更内容 / 原因 / 影响文件 / 验证方式。
 
+## v0.9.1 — 2026-11-12 修复「播放全部」队列条数不足
+
+**背景**：发现页每日推荐显示「共 30 首」，点击播放全部后队列抽屉只出现 10 首。实测 `recommend daily` 返回的 30 首中 20 首为 `visible:false / playFlag:false`（无版权），`Player.setQueue()` 用 `filter(t => t.playable !== false)` 直接丢弃，导致 UI 与队列数量不一致。归一化标记本身正确，问题在于队列层不应删除展示条目。
+
+**改动**
+
+- `electron/ncm/player.ts`：`setQueue` / `playPlaylist` 保留完整列表；新增 `nextPlayable(start, direction, wrap)`，`playAt` 自动跳到最近可播曲目；`step` 按方向跳过；顺序播放曲末只向尾部查找、无可播则 `stop()`（不绕回开头）。
+- `src/components/QueueDrawer.tsx`：不可播条目 40% 透明 + 「不可播放」标签 + 禁止点播，头部计数悬浮提示数量。
+- `src/pages/Discover.tsx`：「播放全部」悬浮说明完整数量与不可播数量。
+- `src/lib/tauriBridge.ts`：`nextPlayableIndex()` 与播控方法同步，保证 Electron / Tauri 行为一致。
+
+**验证**：`npm test` 111/111（新增 `test/queue-playable.spec.ts` 8 例、`test/tauri-bridge.spec.ts` 2 例）、`tsc -b` 零错误、`lint` 0 错误、`npm run build` 成功；重新打包 deb 覆盖安装，实机点击「播放全部」后主进程队列 30 首 / `state.queueLength` 30、抽屉 30 行（20 首标注「不可播放」且禁止点播）、起播命中首个可播曲目「我会等 (Live版)」。
+
+**影响文件**：`electron/ncm/player.ts`、`src/components/QueueDrawer.tsx`、`src/pages/Discover.tsx`、`src/lib/tauriBridge.ts`、`test/queue-playable.spec.ts`、`test/tauri-bridge.spec.ts`、`spec/*`
+
 ## v0.9.0 — 2026-11-12 Tauri 阶段 3：Dock 与系统媒体集成
 
 **方向**：仅在 Tauri 侧实现；Dock 图标用 LauncherEntry 进度条/角标，歌名走 MPRIS + 托盘 + 通知。Ubuntu Dock 的 LauncherEntry 无 `icon` 字段，图标位图不变。

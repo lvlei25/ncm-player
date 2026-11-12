@@ -48,6 +48,7 @@ export function Discover() {
   }, [notify])
 
   const hero = daily[0]
+  const unplayable = daily.filter((t) => t.playable === false).length
 
   return (
     <div className="animate-fade-up px-8 pb-10 pt-7">
@@ -101,6 +102,7 @@ export function Discover() {
               <button
                 type="button"
                 onClick={() => void playQueue(daily, 0)}
+                title={unplayable > 0 ? `共 ${daily.length} 首，其中 ${unplayable} 首暂不可播放，播放时会自动跳过` : undefined}
                 className="flex items-center gap-2 rounded-lg bg-ncm px-5 py-2.5 text-[13px] font-medium text-white transition-colors hover:bg-ncm-deep active:scale-[0.98]"
               >
                 <Play className="h-4 w-4 fill-current" />

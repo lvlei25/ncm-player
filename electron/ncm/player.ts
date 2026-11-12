@@ -118,7 +118,7 @@ class Player {
   }
 
   setQueue(tracks: Track[], startIndex = 0, autoPlay = true): void {
-    this.tracks = tracks.filter((t) => t.playable !== false)
+    this.tracks = tracks
     this.index = Math.min(Math.max(startIndex, 0), Math.max(this.tracks.length - 1, 0))
     this.persistQueue()
     this.emit()
@@ -137,20 +137,31 @@ class Player {
     await this.playAt(0)
   }
 
-  async playAt(index: number): Promise<void> {
-    const track = this.tracks[index]
-    if (!track) return
-    if (!track.playable) {
-      this.errorState('该歌曲不可播放，已跳过')
-      return
+  /**
+   * 从 start 起沿方向找最近可播放的曲目（含加密 ID）。
+   * wrap=false 用于顺序播放：只往队列尾部找，找不到就结束播放而不是绕回开头。
+   */
+  private nextPlayable(start: number, direction: 1 | -1 = 1, wrap = true): number {
+    const n = this.tracks.length
+    if (n === 0) return -1
+    for (let i = 0; i < n; i += 1) {
+      const idx = wrap ? ((start + i * direction) % n + n) % n : start + i * direction
+      if (!wrap && (idx < 0 || idx >= n)) break
+      const track = this.tracks[idx]
+      if (track && track.playable !== false && track.id) return idx
     }
-    // 从 CLI 队列恢复的条目若没补到加密 ID，只能展示，不能下发播放
-    if (!track.id) {
-      console.warn('[player] 曲目缺少加密 ID，请从搜索或歌单重新播放')
-      return
-    }
+    return -1
+  }
 
-    this.index = index
+  async playAt(index: number, direction: 1 | -1 = 1): Promise<void> {
+    const target = this.nextPlayable(index, direction)
+    if (target < 0) {
+      this.errorState('当前列表没有可播放的歌曲')
+      return
+    }
+    const track = this.tracks[target]
+
+    this.index = target
     this.persistQueue()
     this.status = 'playing'
     this.position = 0
@@ -167,7 +178,7 @@ class Player {
 
   /** 播放整个歌单：交给 CLI 的 playlist 模式，同时保留本地镜像 */
   async playPlaylist(playlistId: string, tracks: Track[], originalId?: string): Promise<void> {
-    this.tracks = tracks.filter((t) => t.playable !== false)
+    this.tracks = tracks
     this.index = 0
     this.persistQueue()
     this.status = 'playing'
@@ -205,7 +216,7 @@ class Player {
       this.playMode === 'shuffle' && this.tracks.length > 1
         ? this.randomIndex()
         : (this.index + delta + this.tracks.length) % this.tracks.length
-    await this.playAt(nextIndex)
+    await this.playAt(nextIndex, delta)
   }
 
   /** 随机取一首，尽量避免与当前重复；固定随机源也不会死循环 */
@@ -231,9 +242,12 @@ class Player {
       case 'repeat-all':
         await this.playAt((this.index + 1) % this.tracks.length)
         return
-      default:
-        if (this.index < this.tracks.length - 1) await this.playAt(this.index + 1)
+      default: {
+        // 顺序播放只往队列尾部找下一首可播曲目，找不到就结束，不能绕回开头
+        const next = this.nextPlayable(this.index + 1, 1, false)
+        if (next >= 0) await this.playAt(next)
         else await this.stop()
+      }
     }
   }
 

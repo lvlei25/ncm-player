@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mocks.invoke }))
 vi.mock('@tauri-apps/api/event', () => ({ listen: mocks.listen }))
 
-import { buildSearchArgs, mapPlaybackState, tauriBridge } from '../src/lib/tauriBridge'
+import { buildSearchArgs, mapPlaybackState, nextPlayableIndex, tauriBridge } from '../src/lib/tauriBridge'
 
 const ok = <T>(data: T): IpcResult<T> => ({ ok: true, data })
 
@@ -172,5 +172,28 @@ describe('Tauri 桥接：IPC', () => {
 
     dispose()
     expect(unlisten).toHaveBeenCalled()
+  })
+
+  it('nextPlayableIndex 双向跳过无版权曲目，末端无解返回 -1', () => {
+    const blocked = { ...track, id: 'ENC_B', name: '歌二', playable: false }
+    const list = [track, blocked, { ...track, id: 'ENC_C', name: '歌三' }, { ...blocked, id: 'ENC_D', name: '歌四' }]
+
+    expect(nextPlayableIndex(list, 1, 1)).toBe(2)
+    expect(nextPlayableIndex(list, 1, -1)).toBe(0)
+    expect(nextPlayableIndex(list, 3, 1, false)).toBe(-1)
+    expect(nextPlayableIndex([blocked], 0, 1)).toBe(-1)
+  })
+
+  it('播放全部保留完整队列，并从首个可播曲目开始', async () => {
+    const blocked = { ...track, id: 'ENC_B', name: '歌二', playable: false }
+    const list = [blocked, { ...track, id: 'ENC_C', name: '歌三' }]
+
+    const res = await tauriBridge.player.playQueue(list, 0)
+
+    expect(res.ok).toBe(true)
+    expect(mocks.invoke).toHaveBeenCalledWith('player_state_set', { queue: list, index: 1 })
+    expect(mocks.invoke).toHaveBeenCalledWith('cli_invoke', {
+      args: expect.arrayContaining(['play', '--song', '--encrypted-id', 'ENC_C']),
+    })
   })
 })

@@ -83,6 +83,22 @@ export function buildSearchArgs(type: SearchType, keyword: string): string[] {
   return argv
 }
 
+/**
+ * 从 start 起沿方向找最近可播放的曲目（含加密 ID），与 Electron 侧 Player 行为一致：
+ * 不可播放曲目仍留在列表里，播控时自动跳过；全部不可播时返回 -1。
+ */
+export function nextPlayableIndex(tracks: Track[], start: number, direction: 1 | -1 = 1, wrap = true): number {
+  const n = tracks.length
+  if (n === 0) return -1
+  for (let i = 0; i < n; i += 1) {
+    const idx = wrap ? ((start + i * direction) % n + n) % n : start + i * direction
+    if (!wrap && (idx < 0 || idx >= n)) break
+    const track = tracks[idx]
+    if (track && track.playable !== false && track.id) return idx
+  }
+  return -1
+}
+
 /** CLI 的 state 输出兼容 {state:{...}} 与裸对象两种形状（保留供回归测试与降级使用） */
 export function mapPlaybackState(
   raw: Json,
@@ -250,16 +266,17 @@ export const tauriBridge: NcmBridge = {
       }),
     playQueue: (tracks, startIndex = 0) =>
       wrap(async () => {
-        queue = tracks.filter((t) => t.playable !== false)
+        queue = tracks
         index = Math.min(Math.max(startIndex, 0), Math.max(queue.length - 1, 0))
+        const target = nextPlayableIndex(queue, index, 1)
+        if (target >= 0) index = target
         persist({ queue, index })
-        const track = queue[index]
-        if (track) await cliJson(playArgs(track))
+        if (target >= 0) await cliJson(playArgs(queue[index]))
         return true
       }),
     playPlaylist: (id, tracks, originalId) =>
       wrap(async () => {
-        queue = tracks.filter((t) => t.playable !== false)
+        queue = tracks
         index = 0
         persist({ queue, index })
         await cliJson(['play', '--playlist', '--encrypted-id', id, '--original-id', originalId ?? id])
@@ -270,13 +287,22 @@ export const tauriBridge: NcmBridge = {
         const current = mapPlaybackState(await cliJson(['state']), queue, index, playMode)
         if (current.status === 'playing') await cliJson(['pause'])
         else if (current.status === 'paused') await cliJson(['resume'])
-        else if (queue[index]) await cliJson(playArgs(queue[index]))
+        else {
+          const target = nextPlayableIndex(queue, Math.max(index, 0), 1)
+          if (target >= 0) {
+            index = target
+            persist({ index })
+            await cliJson(playArgs(queue[index]))
+          }
+        }
         return true
       }),
     next: () =>
       wrap(async () => {
         if (queue.length === 0) return false
-        index = (index + 1) % queue.length
+        const target = nextPlayableIndex(queue, (index + 1) % queue.length, 1)
+        if (target < 0) return false
+        index = target
         persist({ index })
         await cliJson(playArgs(queue[index]))
         return true
@@ -284,7 +310,9 @@ export const tauriBridge: NcmBridge = {
     prev: () =>
       wrap(async () => {
         if (queue.length === 0) return false
-        index = (index - 1 + queue.length) % queue.length
+        const target = nextPlayableIndex(queue, (index - 1 + queue.length) % queue.length, -1)
+        if (target < 0) return false
+        index = target
         persist({ index })
         await cliJson(playArgs(queue[index]))
         return true

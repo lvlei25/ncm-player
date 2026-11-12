@@ -23,6 +23,8 @@ export function QueueDrawer({ open, onClose }: QueueDrawerProps) {
     if (open && !queueLoaded) void refreshQueue()
   }, [open, queueLoaded, refreshQueue])
 
+  const unplayableCount = queue.tracks.filter((t) => t.playable === false).length
+
   if (!open) return null
 
   return (
@@ -39,7 +41,12 @@ export function QueueDrawer({ open, onClose }: QueueDrawerProps) {
           <div className="flex items-center gap-2">
             <ListMusic className="h-4 w-4 text-ncm-light" />
             <h2 className="text-[13px] font-medium text-cloud-100">播放队列</h2>
-            <span className="text-[11px] text-cloud-500">{queue.tracks.length} 首</span>
+            <span
+              className="text-[11px] text-cloud-500"
+              title={unplayableCount > 0 ? `其中 ${unplayableCount} 首暂不可播放，播放时会自动跳过` : undefined}
+            >
+              {queue.tracks.length} 首
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -77,6 +84,7 @@ export function QueueDrawer({ open, onClose }: QueueDrawerProps) {
                 className={cn(
                   'group flex items-center gap-3 rounded-xl px-2 py-2 transition-colors',
                   isCurrent ? 'bg-ncm/10' : 'hover:bg-white/5',
+                  !track.playable && 'opacity-40',
                 )}
               >
                 <span
@@ -98,13 +106,20 @@ export function QueueDrawer({ open, onClose }: QueueDrawerProps) {
 
                 <button
                   type="button"
+                  disabled={!track.playable}
                   onClick={() => void playQueue(queue.tracks, index)}
-                  className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+                  className={cn(
+                    'flex min-w-0 flex-1 items-center gap-2.5 text-left',
+                    !track.playable && 'cursor-not-allowed',
+                  )}
                 >
                   <Cover src={track.coverUrl} alt={track.name} className="h-9 w-9 shrink-0" rounded="rounded-md" />
                   <span className="min-w-0">
                     <span className={cn('block truncate text-[13px]', isCurrent ? 'text-ncm-light' : 'text-cloud-100')}>
                       {track.name}
+                      {!track.playable && (
+                        <span className="ml-2 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-cloud-400">不可播放</span>
+                      )}
                     </span>
                     <span className="block truncate text-[11px] text-cloud-500">{artistsText(track.artists)}</span>
                   </span>

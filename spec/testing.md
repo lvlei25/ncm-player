@@ -21,7 +21,7 @@
 └─ L1 类型与构建（tsc -b + vite build）        编译期门禁
 ```
 
-### L2 覆盖范围（自动化，101 例）
+### L2 覆盖范围（自动化，111 例）
 
 | 文件 | 被测对象 | 用例数 |
 | --- | --- | --- |
@@ -37,7 +37,8 @@
 | `test/session-cold-start.spec.ts` | `session.ts` 冷启动先渲染本地值、后台探测、会话/env 缓存与 force | 4 |
 | `test/discover-cache.spec.ts` | `catalog.ts` 发现页内存/落盘缓存、过期刷新、空结果不污染 | 5 |
 | `test/play-mode.spec.ts` | `player.ts` 四种播放模式的曲末续播、持久化、恢复与手动切歌 | 8 |
-| `test/tauri-bridge.spec.ts` | `tauriBridge.ts` 命令模板、播放态映射、目录/会话/歌单链路、状态快照命令、落盘与事件订阅 | 13 |
+| `test/tauri-bridge.spec.ts` | `tauriBridge.ts` 命令模板、播放态映射、目录/会话/歌单链路、状态快照命令、落盘、事件订阅与可播曲目查找 | 15 |
+| `test/queue-playable.spec.ts` | `player.ts` 完整队列保留、无版权曲目跳过、顺序/循环/手动切歌与全不可播降级 | 8 |
 | `test/ipc-contract.spec.ts` | `ipc.ts` 外链通道结构化返回、URL 白名单、invoke 通道唯一性 | 3 |
 
 测试夹具 `test/fixtures.ts` 全部来自 **2026-11-01 真实 CLI 输出**（脱敏），
@@ -71,7 +72,7 @@ NCM_DEBUG=1 npm run dev
 
 必须同时满足：
 
-1. `npm test` 全绿（101/101）
+1. `npm test` 全绿（111/111）
 2. `npx tsc -b` 零错误（含 `tsconfig.electron.json`）
 3. `npm run build` 成功
 4. 涉及 UI 的改动：`dev:web` 截图回归

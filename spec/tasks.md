@@ -170,6 +170,18 @@
 - [x] 门禁：`cargo test` 20/20、`cargo check` 零警告、`npm test` 101/101、`tsc -b` / `lint` / `build` 通过
 - [x] `tauri dev` 实机：MPRIS 属性与 Metadata 可读、播控方法注册、LauncherEntry 信号体、切歌通知、托盘创建、WM_CLASS 匹配
 
+---
+
+# v0.9.1 修复：播放全部只入队可播曲目
+
+- [x] 根因：`setQueue` / `playPlaylist` 过滤 `playable !== false`，每日推荐 30 首中 20 首无版权被丢弃，UI 显示 30 首、队列仅 10 首
+- [x] `player.ts`：队列保留完整列表；新增 `nextPlayable()`，起播 / 切歌 / 曲末续播自动跳过不可播或缺加密 ID 的条目；顺序播放末尾无可播时停止
+- [x] `QueueDrawer.tsx` / `Discover.tsx`：不可播条目弱化并标注、禁止点播，计数与按钮悬浮说明部分曲目不可播
+- [x] `tauriBridge.ts`：`nextPlayableIndex()` 与 `playQueue` / `playPlaylist` / `next` / `prev` / `toggle` 同步该行为
+- [x] 单测：`test/queue-playable.spec.ts` 8 例、`test/tauri-bridge.spec.ts` 新增 2 例
+- [x] 门禁：`npm test` 111/111、`tsc -b` 零错误、`lint` 0 错误、`build` 成功；重新打包 deb 覆盖安装
+- [x] 安装版实机：点击播放全部后队列 30 首（20 首标注不可播放）、抽屉 30 行、起播命中首个可播曲目；本机真实 30 首数据集成验证通过
+
 ## 后续可做（未在本轮）
 
 - `recommend daily` 单次 1.5 s 属网络耗时，可考虑首屏用上次的每日推荐做「立即渲染 + 静默刷新」
