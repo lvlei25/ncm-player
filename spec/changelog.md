@@ -2,6 +2,41 @@
 
 倒序记录，最新在最上。每条包含：变更内容 / 原因 / 影响文件 / 验证方式。
 
+## v0.9.0 — 2026-11-12 Tauri 阶段 3：Dock 与系统媒体集成
+
+**方向**：仅在 Tauri 侧实现；Dock 图标用 LauncherEntry 进度条/角标，歌名走 MPRIS + 托盘 + 通知。Ubuntu Dock 的 LauncherEntry 无 `icon` 字段，图标位图不变。
+
+**改动**
+
+- `src-tauri/src/media.rs`（新）：`MediaSnapshot` / `SharedMedia`，从 `PlaybackState` 构造 MPRIS `Metadata`（title、artist、album、artUrl、length、position）；只有播放状态或曲目变化才触发 `PropertiesChanged`，进度推进不刷屏。
+- `src-tauri/src/mpris.rs`：属性改实时值；`Play` / `Pause` / `PlayPause` / `Stop` 接 `cli::run`；`Next` / `Previous` 走 Rust 侧队列推进后下发 `play`；新增 `publish_changes` 发 `org.freedesktop.DBus.Properties.PropertiesChanged`。
+- `src-tauri/src/desktop.rs`（新）：`LauncherEntry.Update`（`progress` / `progress-visible` / `count` / `count-visible`），播放中显示、暂停隐藏；`org.freedesktop.Notifications.Notify` 切歌通知按 `current.id` 去重；`TrayIconBuilder` 托盘 tooltip 动态显示「正在播放：歌名 - 歌手」（Linux 挂空菜单）；desktop id 默认 `com.ncm.player.tauri`，可用 `NCM_DOCK_DESKTOP_ID` 覆盖。
+- `src-tauri/src/commands.rs`：`spawn_publisher` 成为唯一分发点（前端事件 / MPRIS / Dock / 托盘 / 通知）；`main.rs` 接线 MPRIS 与托盘；`Cargo.toml` 启用 `tray-icon`；`tauri.conf.json` 描述更新。
+
+**明确不做**：Electron 版、Dock 图标位图替换、`quicklist` 动态菜单、MPRIS `Quit` / `Raise` 窗口动作、Tauri 安装包交付。
+
+**验证**：`cargo test` 20/20、`cargo check` 零警告、`npm test` 101/101、`tsc -b` 零错误、`npm run lint` 0 错误、`npm run build` 成功；`tauri dev` 实机：MPRIS 注册且 `PlaybackStatus` / `Metadata` 可读（含歌名、歌手、200000000 µs 长度）、六个播控方法注册、`PropertiesChanged` / `LauncherEntry` / 通知日志齐全、`dbus-monitor` 捕获 `Update` 信号体（`application://com.ncm.player.tauri.desktop` + `count=1` + `progress-visible=false`）、窗口 `WM_CLASS=ncm-player-tauri` 与 desktop 入口匹配、托盘无创建失败。
+
+**未验证**：播放中 `progress-visible=true` 的实机表现（验证时 CLI 为 stopped），该分支由 `desktop::tests::playing_shows_progress_and_count` 覆盖；Dock 视觉需打包后确认。
+
+**影响文件**：`src-tauri/{Cargo.toml,tauri.conf.json,src/media.rs,src/desktop.rs,src/mpris.rs,src/commands.rs,src/main.rs}`、`spec/*`
+
+## v0.8.0 — 2026-11-12 Tauri 阶段 2 增量 A：状态持久化与事件推送
+
+**改动**
+
+- `src-tauri/src/state.rs`（新）：`PlayState`（队列 / 索引 / 播放模式 / 音量）落盘到 `~/.config/ncm-player-tauri/state.json`，启动时恢复；`sanitize` 收敛越界索引、非法模式回落 `order`、音量夹到 0–100；`build_playback` 合并 CLI `state` 与本地队列（含毫秒位置换算）。
+- `src-tauri/src/commands.rs`：新增 `player_state_get` / `player_state_set` / `player_snapshot`；`spawn_publisher` 每 1.5 s 组装 `PlaybackState` 并 emit `player:state-changed`，`NCM_DEBUG=1` 下打印启用 / 失败日志。
+- `src-tauri/src/main.rs`：`manage` 共享状态、注册 3 个命令、启动推送线程；`capabilities/default.json` 补 `core:event:default`。
+- `src/lib/tauriBridge.ts`：启动从 Rust 恢复状态，队列 / 模式 / 音量写操作同步落盘；`player.state` 走 `player_snapshot`；`onState` 改 `listen` 订阅，**去掉前端 1.5 s 轮询**。
+- `Cargo.toml` / `tauri.conf.json` 描述更新到阶段 2。
+
+**明确不做（阶段 2 后续 / 阶段 3）**：凭证加密存储、扫码登录、AI 点歌、自动续播、目录缓存、MPRIS 真实播控、系统托盘、安装包交付。
+
+**验证**：`cargo test` 13/13、`cargo check` 无警告、`npm test` 101/101、`tsc -b` 零错误、`npm run lint` 0 错误、`npm run build` 成功；`tauri dev` 实机：MPRIS 已注册、`[state] player:state-changed 已启用`、周期 `[cli] state`、状态文件生成 `{"queue":[],"index":-1,"play_mode":"order","volume":70}`、前端 `recommend daily` 真实调用。
+
+**影响文件**：`src-tauri/{Cargo.toml,tauri.conf.json,capabilities/default.json,src/state.rs,src/commands.rs,src/main.rs}`、`src/lib/tauriBridge.ts`、`test/tauri-bridge.spec.ts`、`spec/*`
+
 ## v0.7.2 — 2026-11-11 IPC 契约与 lint 清理
 
 **修复 1：外链通道返回契约**

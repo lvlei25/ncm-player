@@ -1,9 +1,15 @@
 //! 阶段 1：Tauri IPC 命令。渲染层只下发语义化参数，CLI 调用一律经过 `cli.rs` 白名单。
 
 use crate::cli::{self, CliError};
+use crate::desktop;
+use crate::media;
+use crate::mpris::Mpris;
+use crate::state::{self, AppState, Patch};
 use serde_json::{json, Value};
 use std::process::Command;
+use std::thread;
 use std::time::Duration;
+use tauri::{Emitter, State};
 
 #[tauri::command]
 pub fn cli_invoke(args: Vec<String>) -> Value {
@@ -119,6 +125,80 @@ pub fn window_maximize(window: tauri::WebviewWindow) {
 #[tauri::command]
 pub fn window_close(window: tauri::WebviewWindow) {
     let _ = window.close();
+}
+
+#[tauri::command]
+pub fn player_state_get(state: State<'_, AppState>) -> Value {
+    cli::ok(state.get())
+}
+
+#[tauri::command]
+pub fn player_state_set(
+    state: State<'_, AppState>,
+    queue: Option<Vec<Value>>,
+    index: Option<i32>,
+    play_mode: Option<String>,
+    volume: Option<i32>,
+) -> Value {
+    let next = state.patch(Patch {
+        queue,
+        index,
+        play_mode,
+        volume,
+    });
+    cli::ok(next)
+}
+
+/// 合并 CLI 播放态与 Rust 侧队列，供渲染层 player.state() 使用。
+/// Tauri 要求带引用入参的 async 命令返回 Result，Ok 内仍是统一 IpcResult。
+#[tauri::command]
+pub async fn player_snapshot(state: State<'_, AppState>) -> Result<Value, ()> {
+    let play = state.get();
+    let cli = cli::run(&["state".into()]).ok();
+    Ok(cli::ok(state::build_playback(cli.as_ref(), &play)))
+}
+
+/// 唯一状态循环：一次组装，分发到前端、MPRIS、Dock、托盘与通知
+pub fn spawn_publisher(app: tauri::AppHandle, state: AppState, mpris: Mpris) {
+    thread::spawn(move || {
+        let debug = std::env::var("NCM_DEBUG").as_deref() == Ok("1");
+        let mut announced = false;
+        let mut last_track_id = String::new();
+        loop {
+            let play = state.get();
+            let cli = cli::run(&["state".into()]).ok();
+            let payload = state::build_playback(cli.as_ref(), &play);
+
+            match app.emit("player:state-changed", payload.clone()) {
+                Ok(()) if debug && !announced => {
+                    println!("[state] player:state-changed 已启用");
+                    announced = true;
+                }
+                Err(error) if debug => eprintln!("[state] 推送失败: {error}"),
+                _ => {}
+            }
+
+            let snapshot = media::from_playback(&payload);
+            if mpris.media.update_if_changed(snapshot.clone()) {
+                mpris.publish_changes(&snapshot);
+            }
+            desktop::publish_launcher(&mpris.connection, &payload);
+            desktop::set_tray_tooltip(&app, &payload);
+
+            let track_id = payload
+                .get("current")
+                .and_then(|current| current.get("id"))
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            if !track_id.is_empty() && track_id != last_track_id {
+                desktop::notify_track(&mpris.connection, &payload);
+            }
+            last_track_id = track_id;
+
+            thread::sleep(Duration::from_millis(1500));
+        }
+    });
 }
 
 #[cfg(test)]

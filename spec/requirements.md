@@ -132,6 +132,25 @@
 - 去掉字符组内多余转义后，歌手字符串仍按 `/`、`、`、`,`、`&` 正确分割。
 - 验收：`npm test` 全绿、`npm run lint` 零错误、`tsc -b` 零错误；安装版中 `window.ncm.app.openExternal` 返回结构化结果。
 
+## 3.6 追加需求 R13（v0.8.0）：Tauri 阶段 2 增量 A —— 状态持久化与事件推送
+
+- 队列、当前索引、播放模式、音量必须持久化到用户配置目录，应用重启后恢复（与 Electron 版 `store.ts` 对齐）。
+- 播放状态由 Rust 侧统一组装，每 1.5 s 通过 `player:state-changed` 推送；渲染层不再自行轮询。
+- Rust 侧状态需校验：索引越界收敛、非法播放模式回落 `order`、音量夹到 0–100。
+- `player_snapshot` 合并 CLI `state` 与 Rust 状态，返回字段与 `PlaybackState` 一致。
+- 阶段 2 后续增量（本轮不做）：凭证加密存储、扫码登录、AI 点歌、自动续播、目录缓存；阶段 3 的 MPRIS 真实播控、托盘与安装包交付同样不在本轮。
+- 验收：`cargo test`、`npm test`、`tsc -b`、`npm run lint`、`npm run build` 全通过；`tauri dev` 下状态事件正常推送、播放栏随状态更新。
+
+## 3.7 追加需求 R14（v0.9.0）：阶段 3 Dock 播放状态与系统媒体集成
+
+- 仅在 Tauri 侧实现，Electron 版与现有 deb 不改动。
+- Dock：播放中显示进度条与队列序号角标，暂停/停止时隐藏；图标位图不变（Ubuntu Dock 的 `com.canonical.Unity.LauncherEntry` 只支持 `count` / `progress` / `urgent` / `quicklist`，无 `icon` 字段）。
+- MPRIS：真实 `PlaybackStatus` / `Metadata`（title、artist、album、artUrl、length）/ `Position`，状态或曲目变化时发 `PropertiesChanged`；`Play` / `Pause` / `Next` / `Previous` / `Stop` 接入真实播控，其中上下一首走 Rust 侧队列推进。
+- 托盘 tooltip 动态显示「正在播放：歌名 - 歌手」；切歌时发一条 `org.freedesktop.Notifications.Notify`，按 `current.id` 去重，不刷屏。
+- `desktop id` 必须与 Dock 中的 `.desktop` 文件名一致：默认 `com.ncm.player.tauri`，支持 `NCM_DOCK_DESKTOP_ID` 覆盖。
+- 数据源唯一：复用阶段 2 `spawn_publisher` 的 1.5 s 循环，不新增轮询。
+- 验收：`cargo test` / `npm test` / `tsc -b` / `lint` / `build` 全绿；`tauri dev` 下 `busctl` 能读到实时 MPRIS 属性、`gdbus monitor` 能捕获 `LauncherEntry.Update`、托盘 tooltip 随歌变化、切歌通知只发一条。
+
 ## 4. 验收结果（实测）
 
 | 指标 | 改动前 | 改动后 | 结论 |

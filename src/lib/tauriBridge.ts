@@ -1,9 +1,11 @@
 /**
- * Tauri 阶段 1 桥接：与 Electron 共用 NcmBridge 契约。
- * CLI 调用统一走 Rust 的 cli_invoke（白名单 + 串行 + 错误码），
+ * Tauri 阶段 2 桥接：与 Electron 共用 NcmBridge 契约。
+ * CLI 调用走 Rust 的 cli_invoke（白名单 + 串行 + 错误码），
+ * 播放状态由 Rust 侧持久化并通过 player:state-changed 推送，
  * 归一化复用 electron/ncm 下的纯 TS 模块，避免两边各写一套。
  */
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import type { NcmBridge } from '../shared/api'
 import { PLAY_MODES } from '../shared/types'
 import type {
@@ -61,7 +63,7 @@ function unsupported<T>(feature: string): Promise<IpcResult<T>> {
   return Promise.resolve({
     ok: false as const,
     code: 'UNSUPPORTED' as const,
-    message: `Tauri 阶段 2 提供：${feature}`,
+    message: `Tauri 后续阶段提供：${feature}`,
   })
 }
 
@@ -81,7 +83,7 @@ export function buildSearchArgs(type: SearchType, keyword: string): string[] {
   return argv
 }
 
-/** CLI 的 state 输出兼容 {state:{...}} 与裸对象两种形状 */
+/** CLI 的 state 输出兼容 {state:{...}} 与裸对象两种形状（保留供回归测试与降级使用） */
 export function mapPlaybackState(
   raw: Json,
   tracks: Track[],
@@ -112,10 +114,35 @@ export function mapPlaybackState(
   }
 }
 
-/** 阶段 1 的队列镜像是内存态，阶段 2 再落盘并接入自动续播 */
+interface PlayStateShape {
+  queue: Track[]
+  index: number
+  play_mode: PlayMode
+  volume: number
+}
+
+/** 渲染层镜像；真正的状态在 Rust 侧，启动时恢复、每次写操作同步落盘 */
 let queue: Track[] = []
 let index = -1
 let playMode: PlayMode = 'order'
+
+const persist = (
+  patch: Partial<{ queue: Track[]; index: number; playMode: PlayMode; volume: number }>,
+): void => {
+  const payload: Record<string, unknown> = { ...patch }
+  // Tauri 命令参数是 camelCase，Rust 侧字段为 snake_case；两种键都带上，避免版本差异漏写
+  if (patch.playMode) payload.play_mode = patch.playMode
+  void call('player_state_set', payload).catch(() => undefined)
+}
+
+void call<PlayStateShape>('player_state_get')
+  .then((res) => {
+    if (!res.ok || !res.data) return
+    if (Array.isArray(res.data.queue)) queue = res.data.queue
+    if (typeof res.data.index === 'number') index = res.data.index
+    if (PLAY_MODES.includes(res.data.play_mode)) playMode = res.data.play_mode
+  })
+  .catch(() => undefined)
 
 const okTrue = (): Promise<IpcResult<boolean>> => Promise.resolve({ ok: true, data: true })
 
@@ -206,7 +233,8 @@ export const tauriBridge: NcmBridge = {
   },
 
   player: {
-    state: () => wrap(async () => mapPlaybackState(await cliJson(['state']), queue, index, playMode)),
+    // Rust 侧合并 CLI state 与持久化的队列/模式，一次 invoke 拿到完整快照
+    state: () => call<PlaybackState>('player_snapshot'),
     queue: async () => ({ ok: true, data: { tracks: queue, currentIndex: index } satisfies QueueSnapshot }),
     playTrack: (track) =>
       wrap(async () => {
@@ -216,6 +244,7 @@ export const tauriBridge: NcmBridge = {
           queue = [track, ...queue]
           index = 0
         }
+        persist({ queue, index })
         await cliJson(playArgs(track))
         return true
       }),
@@ -223,6 +252,7 @@ export const tauriBridge: NcmBridge = {
       wrap(async () => {
         queue = tracks.filter((t) => t.playable !== false)
         index = Math.min(Math.max(startIndex, 0), Math.max(queue.length - 1, 0))
+        persist({ queue, index })
         const track = queue[index]
         if (track) await cliJson(playArgs(track))
         return true
@@ -231,6 +261,7 @@ export const tauriBridge: NcmBridge = {
       wrap(async () => {
         queue = tracks.filter((t) => t.playable !== false)
         index = 0
+        persist({ queue, index })
         await cliJson(['play', '--playlist', '--encrypted-id', id, '--original-id', originalId ?? id])
         return true
       }),
@@ -246,6 +277,7 @@ export const tauriBridge: NcmBridge = {
       wrap(async () => {
         if (queue.length === 0) return false
         index = (index + 1) % queue.length
+        persist({ index })
         await cliJson(playArgs(queue[index]))
         return true
       }),
@@ -253,6 +285,7 @@ export const tauriBridge: NcmBridge = {
       wrap(async () => {
         if (queue.length === 0) return false
         index = (index - 1 + queue.length) % queue.length
+        persist({ index })
         await cliJson(playArgs(queue[index]))
         return true
       }),
@@ -263,17 +296,21 @@ export const tauriBridge: NcmBridge = {
       }),
     volume: (level) =>
       wrap(async () => {
-        await cliJson(['volume', String(Math.max(0, Math.min(100, Math.round(level))))])
+        const clamped = Math.max(0, Math.min(100, Math.round(level)))
+        persist({ volume: clamped })
+        await cliJson(['volume', String(clamped)])
         return true
       }),
     setPlayMode: (mode) => {
       if (!PLAY_MODES.includes(mode)) return unsupported('未知播放模式')
       playMode = mode
+      persist({ playMode: mode })
       return okTrue()
     },
     queueAdd: (track, next) =>
       wrap(async () => {
         queue = [...queue, track]
+        persist({ queue })
         const args = ['queue', 'add', '--encrypted-id', track.id]
         if (track.originalId) args.push('--original-id', track.originalId)
         if (next) args.push('--next')
@@ -288,6 +325,7 @@ export const tauriBridge: NcmBridge = {
       wrap(async () => {
         queue = []
         index = -1
+        persist({ queue, index })
         try {
           await cliJson(['queue', 'clear'])
         } catch {
@@ -300,6 +338,7 @@ export const tauriBridge: NcmBridge = {
         queue = queue.filter((_, i) => i !== at)
         if (at < index) index -= 1
         else if (at === index) index = Math.min(index, queue.length - 1)
+        persist({ queue, index })
       }
       return okTrue()
     },
@@ -312,17 +351,26 @@ export const tauriBridge: NcmBridge = {
         if (index === from) index = to
         else if (from < index && to >= index) index -= 1
         else if (from > index && to <= index) index += 1
+        persist({ queue, index })
       }
       return okTrue()
     },
     onState: (cb) => {
-      // 阶段 1 用 1.5s 轮询；阶段 2 换成 Rust 侧 player:state-changed 事件
-      const timer = setInterval(() => {
-        void tauriBridge.player.state().then((res) => {
-          if (res.ok) cb(res.data)
+      // 阶段 2：订阅 Rust 侧 1.5s 推送，渲染层不再自行轮询
+      let disposed = false
+      let unlisten: (() => void) | null = null
+      void listen<PlaybackState>('player:state-changed', (event) => {
+        if (!disposed) cb(event.payload)
+      })
+        .then((fn) => {
+          if (disposed) fn()
+          else unlisten = fn
         })
-      }, 1500)
-      return () => clearInterval(timer)
+        .catch(() => undefined)
+      return () => {
+        disposed = true
+        unlisten?.()
+      }
     },
   },
 
@@ -334,7 +382,7 @@ export const tauriBridge: NcmBridge = {
 
   app: {
     info: () => call('app_info'),
-    // 阶段 1 不落盘：向导完成后再次进入也由 session 状态决定
+    // 阶段 2 后续增量再落盘；向导完成后再次进入也由 session 状态决定
     setOnboarded: () => okTrue(),
     openExternal: (url) => call<boolean>('open_external', { url }),
     minimize: () => {

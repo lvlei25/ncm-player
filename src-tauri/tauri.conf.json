@@ -37,7 +37,7 @@
     ],
     "category": "Music",
     "shortDescription": "Tauri 迁移验证壳",
-    "longDescription": "Tauri 阶段 1：复用现有 Vite 前端，经 Rust 桥接真实 ncm-cli 数据，并提供最小 MPRIS 服务。",
+    "longDescription": "Tauri 阶段 3：Dock 进度与角标、MPRIS 媒体控件、托盘与切歌通知，播放状态由 Rust 侧统一分发。",
     "linux": {
       "deb": {
         "depends": ["libwebkit2gtk-4.1-0", "mpv"]

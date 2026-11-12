@@ -22,7 +22,7 @@
 
 ## 当前版本
 
-`v0.7.2` — IPC 契约与 lint 清理（外链结构化返回、剩余 lint 错误清零）
+`v0.9.0` — Tauri 阶段 3：Dock 进度/角标、MPRIS 媒体控件、托盘与切歌通知
 
 测试相关入口：`spec/testing.md`（策略）、`docs/test-cases.md`（用例与执行记录）
 

@@ -148,6 +148,28 @@
 - [x] 新增 `test/ipc-contract.spec.ts` 3 例：结构化返回、URL 白名单、通道唯一性
 - [x] 门禁：`npm test` 98/98、`npm run lint` 零错误、`tsc -b` 零错误、`npm run build` 成功
 
+---
+
+# v0.8.0 Tauri 阶段 2 增量 A：状态持久化与事件推送
+
+- [x] `src-tauri/src/state.rs`：`PlayState` 落盘/恢复、字段校验、`PlaybackState` 组装（5 例 Rust 单测）
+- [x] Rust 命令：`player_state_get` / `player_state_set` / `player_snapshot`
+- [x] 后台线程 + `player:state-changed` 事件推送；capabilities 补 event 权限
+- [x] `tauriBridge`：启动恢复状态、写操作落盘、`onState` 改事件订阅（去掉轮询，新增 3 例前端单测）
+- [x] 门禁：`cargo test` 13/13、`npm test` 101/101、`tsc -b` 零错误、`lint` 0 错误、`build` 成功
+- [x] Tauri dev 实机：MPRIS 注册、`[state] player:state-changed 已启用`、周期 `[cli] state`、状态文件生成、前端真实数据链路
+
+---
+
+# v0.9.0 Tauri 阶段 3：Dock 与系统媒体
+
+- [x] `media.rs`：`MediaSnapshot` / `SharedMedia` / MPRIS `Metadata` 构造（3 例单测）
+- [x] `mpris.rs`：实时属性 + `PropertiesChanged` + 播控方法（Next/Previous 走 Rust 队列推进）
+- [x] `desktop.rs`：LauncherEntry 进度/角标、切歌通知、托盘 tooltip（Linux 空菜单，4 例单测）
+- [x] `commands.rs` 循环分发、`main.rs` 接线、`Cargo.toml` 启用 `tray-icon`
+- [x] 门禁：`cargo test` 20/20、`cargo check` 零警告、`npm test` 101/101、`tsc -b` / `lint` / `build` 通过
+- [x] `tauri dev` 实机：MPRIS 属性与 Metadata 可读、播控方法注册、LauncherEntry 信号体、切歌通知、托盘创建、WM_CLASS 匹配
+
 ## 后续可做（未在本轮）
 
 - `recommend daily` 单次 1.5 s 属网络耗时，可考虑首屏用上次的每日推荐做「立即渲染 + 静默刷新」

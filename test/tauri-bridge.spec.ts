@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { IpcResult, Track } from '../src/shared/types'
+import type { IpcResult, PlaybackState, Track } from '../src/shared/types'
 
-const mocks = vi.hoisted(() => ({ invoke: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  invoke: vi.fn(async () => ({ ok: true, data: null })),
+  listen: vi.fn(async () => () => undefined),
+}))
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mocks.invoke }))
+vi.mock('@tauri-apps/api/event', () => ({ listen: mocks.listen }))
 
 import { buildSearchArgs, mapPlaybackState, tauriBridge } from '../src/lib/tauriBridge'
 
@@ -17,9 +21,22 @@ const track: Track = {
   playable: true,
 }
 
+const snapshot: PlaybackState = {
+  status: 'stopped',
+  position: 0,
+  duration: 200,
+  volume: 70,
+  currentIndex: -1,
+  queueLength: 0,
+  current: null,
+  playMode: 'order',
+}
+
 beforeEach(() => {
   mocks.invoke.mockReset()
   mocks.invoke.mockResolvedValue(ok(null))
+  mocks.listen.mockReset()
+  mocks.listen.mockResolvedValue(() => undefined)
 })
 
 describe('Tauri 桥接：纯函数', () => {
@@ -109,16 +126,51 @@ describe('Tauri 桥接：IPC', () => {
     expect(res).toEqual({ ok: false, code: 'UNAUTHORIZED', message: '尚未登录' })
   })
 
-  it('阶段 2 能力返回 UNSUPPORTED', async () => {
+  it('后续阶段能力返回 UNSUPPORTED', async () => {
     const chat = await tauriBridge.ai.chat([{ role: 'user', content: '放点音乐' }])
     expect(chat).toMatchObject({ ok: false, code: 'UNSUPPORTED' })
     expect(await tauriBridge.session.save('a', 'b')).toMatchObject({ ok: false, code: 'UNSUPPORTED' })
   })
 
-  it('播放模式切换会体现在后续 state 快照', async () => {
-    expect(await tauriBridge.player.setPlayMode('repeat-one')).toEqual(ok(true))
+  it('player.state 走 Rust player_snapshot 而不是 CLI 轮询', async () => {
+    mocks.invoke.mockResolvedValueOnce(ok(snapshot))
     const res = await tauriBridge.player.state()
-    expect(res.ok && res.data.playMode).toBe('repeat-one')
+    expect(mocks.invoke).toHaveBeenCalledWith('player_snapshot', {})
+    expect(res).toEqual(ok(snapshot))
+  })
+
+  it('播放模式切换落盘，非法模式被拒绝', async () => {
+    expect(await tauriBridge.player.setPlayMode('repeat-one')).toEqual(ok(true))
+    expect(mocks.invoke).toHaveBeenCalledWith(
+      'player_state_set',
+      expect.objectContaining({ playMode: 'repeat-one', play_mode: 'repeat-one' }),
+    )
     expect(await tauriBridge.player.setPlayMode('unknown' as never)).toMatchObject({ ok: false, code: 'UNSUPPORTED' })
+  })
+
+  it('队列写操作同步持久化', async () => {
+    mocks.invoke.mockResolvedValue(ok(true))
+    await tauriBridge.player.playQueue([track], 0)
+    expect(mocks.invoke).toHaveBeenCalledWith('player_state_set', { queue: [track], index: 0 })
+  })
+
+  it('onState 订阅 Rust 事件，取消时解绑', async () => {
+    const unlisten = vi.fn()
+    let handler: ((event: { payload: PlaybackState }) => void) | null = null
+    mocks.listen.mockImplementation(async (_name: string, cb: (event: { payload: PlaybackState }) => void) => {
+      handler = cb
+      return unlisten
+    })
+
+    const received: PlaybackState[] = []
+    const dispose = tauriBridge.player.onState((state) => received.push(state))
+    await vi.waitFor(() => expect(handler).not.toBeNull())
+
+    handler!({ payload: snapshot })
+    expect(received).toEqual([snapshot])
+    expect(mocks.listen).toHaveBeenCalledWith('player:state-changed', expect.any(Function))
+
+    dispose()
+    expect(unlisten).toHaveBeenCalled()
   })
 })
