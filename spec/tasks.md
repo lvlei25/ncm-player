@@ -117,7 +117,7 @@
 
 # v0.7.0 Tauri 迁移（进行中）
 
-路线：**阶段 0** 空壳验证（Tauri 2 + zbus MPRIS 骨架）✅ → **阶段 1** Rust CLI 桥接（本轮）→ **阶段 2** 完整能力层（凭证/登录/队列/AI/持久化）→ **阶段 3** MPRIS 真实播控 + 托盘 + deb/AppImage 交付。
+路线：**阶段 0** 空壳验证 ✅ → **阶段 1** Rust CLI 桥接 ✅ → **阶段 2** 状态持久化 ✅ / 登录闭环（v0.10.0）/ AI 与缓存待做 → **阶段 3** MPRIS 真实播控 + 托盘 ✅ / deb/AppImage 交付待做。
 
 ## T16 阶段 1：Rust CLI 桥接
 
@@ -181,6 +181,18 @@
 - [x] 单测：`test/queue-playable.spec.ts` 8 例、`test/tauri-bridge.spec.ts` 新增 2 例
 - [x] 门禁：`npm test` 111/111、`tsc -b` 零错误、`lint` 0 错误、`build` 成功；重新打包 deb 覆盖安装
 - [x] 安装版实机：点击播放全部后队列 30 首（20 首标注不可播放）、抽屉 30 行、起播命中首个可播曲目；本机真实 30 首数据集成验证通过
+
+---
+
+# v0.10.0 Tauri 阶段 2 增量 B：登录闭环
+
+- [x] `src-tauri/src/cli.rs`：白名单补 `logout`、`extract_login_url()` 链接提取；`cli_text` 支持 `timeout_ms`（1–60 s 上限）
+- [x] `src-tauri/src/commands.rs`：`session_save` / `session_login_start` / `session_logout` / `onboarded_set`，统一 `IpcResult` 并在凭证/登出后推送 `session:changed`
+- [x] `src-tauri/src/main.rs` 注册 4 个新命令；`capabilities/default.json` 描述更新（事件权限沿用 `core:event:default`）
+- [x] `src/lib/tauriBridge.ts`：`session.save` / `loginStart` / `logout` / `onChange`、60 s 会话缓存与失效入口、`app.setOnboarded` 落盘
+- [x] 单测：Rust 新增 5 例（白名单/链接提取/凭证判定/超时上限/票据），前端新增 9 例（命令转发、错误码、缓存、事件订阅、向导标记）
+- [x] 门禁：`cargo test` 27/27、`npm test` 120/120、`tsc -b` 零错误、`lint` 0 错误、`build` 成功
+- [x] `tauri dev` 只读冒烟：窗口与 MPRIS/LauncherEntry 启动正常，日志出现 `[cli] config list` / `login --check` / `recommend daily`；4 个新命令编译注册成功，未改动真实凭证与登录态
 
 ## 后续可做（未在本轮）
 

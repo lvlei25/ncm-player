@@ -8,7 +8,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mocks.invoke }))
 vi.mock('@tauri-apps/api/event', () => ({ listen: mocks.listen }))
 
-import { buildSearchArgs, mapPlaybackState, nextPlayableIndex, tauriBridge } from '../src/lib/tauriBridge'
+import {
+  buildSearchArgs,
+  invalidateSessionCache,
+  mapPlaybackState,
+  nextPlayableIndex,
+  tauriBridge,
+} from '../src/lib/tauriBridge'
 
 const ok = <T>(data: T): IpcResult<T> => ({ ok: true, data })
 
@@ -33,6 +39,7 @@ const snapshot: PlaybackState = {
 }
 
 beforeEach(() => {
+  invalidateSessionCache()
   mocks.invoke.mockReset()
   mocks.invoke.mockResolvedValue(ok(null))
   mocks.listen.mockReset()
@@ -126,10 +133,9 @@ describe('Tauri 桥接：IPC', () => {
     expect(res).toEqual({ ok: false, code: 'UNAUTHORIZED', message: '尚未登录' })
   })
 
-  it('后续阶段能力返回 UNSUPPORTED', async () => {
+  it('AI 点歌仍留待后续阶段', async () => {
     const chat = await tauriBridge.ai.chat([{ role: 'user', content: '放点音乐' }])
     expect(chat).toMatchObject({ ok: false, code: 'UNSUPPORTED' })
-    expect(await tauriBridge.session.save('a', 'b')).toMatchObject({ ok: false, code: 'UNSUPPORTED' })
   })
 
   it('player.state 走 Rust player_snapshot 而不是 CLI 轮询', async () => {
@@ -195,5 +201,114 @@ describe('Tauri 桥接：IPC', () => {
     expect(mocks.invoke).toHaveBeenCalledWith('cli_invoke', {
       args: expect.arrayContaining(['play', '--song', '--encrypted-id', 'ENC_C']),
     })
+  })
+
+  it('保存凭证转发到 Rust session_save', async () => {
+    const res = await tauriBridge.session.save(' app-1 ', ' key-1 ')
+
+    expect(res.ok).toBe(true)
+    expect(mocks.invoke).toHaveBeenCalledWith('session_save', {
+      appId: ' app-1 ', privateKey: ' key-1 ',
+      app_id: ' app-1 ', private_key: ' key-1 ',
+    })
+  })
+
+  it('凭证为空时透传 Rust 的 CREDENTIALS 错误码', async () => {
+    mocks.invoke.mockResolvedValueOnce({ ok: false, code: 'CREDENTIALS', message: 'appId 与 privateKey 不能为空' })
+
+    const res = await tauriBridge.session.save('', '')
+
+    expect(res).toMatchObject({ ok: false, code: 'CREDENTIALS' })
+  })
+
+  it('扫码登录返回 Rust 提取的链接票据', async () => {
+    const ticket = { ok: true, link: 'https://music.163.com/login?code=abc', raw: '扫码：https://music.163.com/login?code=abc' }
+    mocks.invoke.mockResolvedValueOnce(ok(ticket))
+
+    const res = await tauriBridge.session.loginStart()
+
+    expect(mocks.invoke).toHaveBeenCalledWith('session_login_start', {})
+    expect(res.ok && res.data).toEqual(ticket)
+  })
+
+  it('退出登录转发到 Rust session_logout', async () => {
+    const res = await tauriBridge.session.logout()
+
+    expect(res.ok).toBe(true)
+    expect(mocks.invoke).toHaveBeenCalledWith('session_logout', {})
+  })
+
+  it('会话状态 60s 内复用缓存，force 强制重新探测', async () => {
+    mocks.invoke
+      .mockResolvedValueOnce(ok('appId: abc123'))
+      .mockResolvedValueOnce(ok({ success: true }))
+      .mockResolvedValueOnce(ok('appId: abc123'))
+      .mockResolvedValueOnce(ok({ success: false }))
+
+    const first = await tauriBridge.session.status()
+    expect(first).toEqual(ok({ configured: true, loggedIn: true }))
+    expect(await tauriBridge.session.status()).toEqual(first)
+    expect(mocks.invoke).toHaveBeenCalledTimes(2)
+
+    expect(await tauriBridge.session.status(true)).toEqual(ok({ configured: true, loggedIn: false }))
+    expect(mocks.invoke).toHaveBeenCalledTimes(4)
+  })
+
+  it('会话变更订阅 Rust 事件，事件刷新缓存且取消时解绑', async () => {
+    const unlisten = vi.fn()
+    let handler: ((event: { payload: { configured: boolean; loggedIn: boolean } }) => void) | null = null
+    mocks.listen.mockImplementation(
+      async (_name: string, cb: (event: { payload: { configured: boolean; loggedIn: boolean } }) => void) => {
+        handler = cb
+        return unlisten
+      },
+    )
+
+    const received: Array<{ configured: boolean; loggedIn: boolean }> = []
+    const dispose = tauriBridge.session.onChange((s) => received.push(s))
+    await vi.waitFor(() => expect(handler).not.toBeNull())
+
+    const payload = { configured: true, loggedIn: true }
+    handler!({ payload })
+    expect(received).toEqual([payload])
+    expect(mocks.listen).toHaveBeenCalledWith('session:changed', expect.any(Function))
+    expect(await tauriBridge.session.status()).toEqual(ok(payload))
+
+    dispose()
+    expect(unlisten).toHaveBeenCalled()
+  })
+
+  it('会话缓存显式失效后重新探测', async () => {
+    mocks.invoke
+      .mockResolvedValueOnce(ok('appId: abc'))
+      .mockResolvedValueOnce(ok({ success: true }))
+      .mockResolvedValueOnce(ok('appId: 未配置'))
+
+    await tauriBridge.session.status()
+    invalidateSessionCache()
+
+    expect(await tauriBridge.session.status()).toEqual(ok({ configured: false, loggedIn: false }))
+    expect(mocks.invoke).toHaveBeenCalledTimes(3)
+  })
+
+  it('保存凭证会立即使会话缓存失效', async () => {
+    mocks.invoke
+      .mockResolvedValueOnce(ok('appId: abc'))
+      .mockResolvedValueOnce(ok({ success: true }))
+      .mockResolvedValueOnce(ok(true))
+      .mockResolvedValueOnce(ok('appId: 未配置'))
+
+    await tauriBridge.session.status()
+    await tauriBridge.session.save('a', 'b')
+
+    expect(await tauriBridge.session.status()).toEqual(ok({ configured: false, loggedIn: false }))
+    expect(mocks.invoke).toHaveBeenCalledTimes(4)
+  })
+
+  it('向导完成标记写入 Rust 侧 prefs', async () => {
+    const res = await tauriBridge.app.setOnboarded(true)
+
+    expect(res.ok).toBe(true)
+    expect(mocks.invoke).toHaveBeenCalledWith('onboarded_set', { value: true })
   })
 })

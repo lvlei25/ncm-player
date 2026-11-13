@@ -10,6 +10,7 @@ import type { NcmBridge } from '../shared/api'
 import { PLAY_MODES } from '../shared/types'
 import type {
   IpcResult,
+  LoginTicket,
   NcmErrorCode,
   PlaybackState,
   PlaybackStatus,
@@ -168,28 +169,64 @@ function playArgs(track: Track): string[] {
   return args
 }
 
+/** 会话探测 60s 缓存，与 Electron 版 session.ts 一致 */
+let sessionCache: { value: SessionStatus; at: number } | null = null
+
+/** 凭证/登录态变化后失效缓存（也用于测试隔离） */
+export function invalidateSessionCache(): void {
+  sessionCache = null
+}
+
 export const tauriBridge: NcmBridge = {
   env: {
     check: (force) => call('env_check', { force: Boolean(force) }),
   },
 
   session: {
-    status: () =>
+    status: (force) =>
       wrap(async () => {
+        if (!force && sessionCache && Date.now() - sessionCache.at < 60_000) return sessionCache.value
         const config = await call<string>('cli_text', { args: ['config', 'list'] })
-        const configured = config.ok && /^\s*appId\s*:\s*(?!未配置)\S+/m.test(config.data)
+        const configured = config.ok && /^\s*appId\s*:\s*(?!未配置)\S+/m.test(config.data ?? '')
         let loggedIn = false
         if (configured) {
           const check = await call<Json>('cli_invoke', { args: ['login', '--check'] })
           loggedIn = check.ok && (check.data as Json)?.success === true
         }
-        const result: SessionStatus = { configured, loggedIn }
-        return result
+        const value: SessionStatus = { configured, loggedIn }
+        sessionCache = { value, at: Date.now() }
+        return value
       }),
-    onChange: () => () => undefined,
-    save: () => unsupported('凭证加密存储'),
-    loginStart: () => unsupported('扫码登录'),
-    logout: () => unsupported('退出登录'),
+    onChange: (cb) => {
+      let disposed = false
+      let unlisten: (() => void) | null = null
+      void listen<SessionStatus>('session:changed', (event) => {
+        if (disposed) return
+        sessionCache = { value: event.payload, at: Date.now() }
+        cb(event.payload)
+      })
+        .then((fn) => {
+          if (disposed) fn()
+          else unlisten = fn
+        })
+        .catch(() => undefined)
+      return () => {
+        disposed = true
+        unlisten?.()
+      }
+    },
+    save: (appId, privateKey) => {
+      sessionCache = null
+      // Rust 参数为 snake_case，两种键都带上以兼容 Tauri 版本差异
+      return call<boolean>('session_save', {
+        appId, privateKey, app_id: appId, private_key: privateKey,
+      })
+    },
+    loginStart: () => call<LoginTicket>('session_login_start'),
+    logout: () => {
+      sessionCache = null
+      return call<boolean>('session_logout')
+    },
   },
 
   catalog: {
@@ -410,8 +447,7 @@ export const tauriBridge: NcmBridge = {
 
   app: {
     info: () => call('app_info'),
-    // 阶段 2 后续增量再落盘；向导完成后再次进入也由 session 状态决定
-    setOnboarded: () => okTrue(),
+    setOnboarded: (value) => call<boolean>('onboarded_set', { value }),
     openExternal: (url) => call<boolean>('open_external', { url }),
     minimize: () => {
       void call('window_minimize')

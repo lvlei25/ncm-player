@@ -159,6 +159,15 @@
 - Electron 与 Tauri 两个运行时行为一致；队列抽屉与发现页列表均需标注不可播放曲目。
 - 验收：`npm test` ≥ 111 例、`tsc -b`、`lint`、`build` 全通过；实机点击「播放全部」后抽屉显示 30 首（其中 20 首标注不可播放），起播命中首个可播曲目。
 
+## 3.9 追加需求 R16（v0.10.0）：Tauri 阶段 2 增量 B —— 登录闭环
+
+- Tauri 壳必须能在**不启动 Electron** 的情况下完成首次配置向导：保存 `appId` / `privateKey`、获取扫码登录链接、退出登录，与 Electron 版 `session.ts` 行为等价。
+- Rust 侧统一执行 `config set` / `login --background` / `logout`：参数数组传递、首命令白名单、`login --background` 单独放宽到 30 s、从混合输出提取第一个 http(s) 链接；凭证为空返回 `CREDENTIALS`。
+- 会话状态具备 60 s 缓存与 `force` 绕过；凭证写入 / 退出登录 / 登录完成后通过 `session:changed` 事件推送最新状态，渲染层无需自行轮询。
+- 向导完成标记 `onboarded` 持久化到 Tauri 配置目录（与播放状态文件隔离），不再是无操作。
+- 明确不做（留后续）：AI 点歌与 AI 配置、发现页缓存、自解码播放、Tauri deb/AppImage 交付。
+- 验收：`cargo test` 通过、`npm test` ≥ 120 例、`tsc -b` / `lint` / `build` 全绿；`tauri dev` 下新命令注册成功、只读会话探测正常，且不改动本机真实凭证与登录态。
+
 ## 4. 验收结果（实测）
 
 | 指标 | 改动前 | 改动后 | 结论 |

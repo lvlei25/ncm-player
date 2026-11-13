@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "阶段 2 状态事件的权限集（自定义命令无需额外权限）",
+  "description": "阶段 2 状态与会话事件的权限集（自定义命令无需额外权限）",
   "windows": ["main"],
   "permissions": ["core:default", "core:event:default"]
 }

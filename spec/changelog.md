@@ -2,6 +2,23 @@
 
 倒序记录，最新在最上。每条包含：变更内容 / 原因 / 影响文件 / 验证方式。
 
+## v0.10.0 — 2026-11-13 Tauri 阶段 2 增量 B：登录闭环
+
+**背景**：Tauri 壳的 `session.save` / `loginStart` / `logout` 仍返回 `UNSUPPORTED`，首次配置向导无法在 Tauri 下完成；`onChange` 是空函数、`setOnboarded` 不落盘、`session.status` 每次都重复拉起 CLI。Electron 侧 `session.ts` 已具备等价实现，本轮在 Rust 侧补齐。
+
+**改动**
+
+- `src-tauri/src/cli.rs`：白名单补 `logout`；新增 `extract_login_url()`（与 Electron `URL_RE` 等价，从混合输出取第一个 http(s) 链接）。
+- `src-tauri/src/commands.rs`：`cli_text` 增加 `timeout_ms`（1–60 s 上限）；新增 `session_save`（空凭证返回 `CREDENTIALS`，依次写 `appId` / `privateKey` / `player=mpv`）、`session_login_start`（`login --background` 放宽到 30 s，返回 `LoginTicket`）、`session_logout`、`onboarded_set`（独立 `prefs.json`）；凭证与登出后通过 `session:changed` 推送最新状态。文本命令统一做错误码归类。
+- `src-tauri/src/main.rs`：注册 4 个命令；`capabilities/default.json` 描述更新。
+- `src/lib/tauriBridge.ts`：会话 60 s 缓存与 `force` 绕过、缓存失效入口、事件订阅刷新缓存；`save` / `loginStart` / `logout` / `setOnboarded` 全部改为真实 Rust 命令。AI 点歌与 AI 配置仍显式 `UNSUPPORTED`。
+
+**明确不做**：AI 点歌/配置、发现页缓存、自解码播放、Tauri deb/AppImage 交付。
+
+**验证**：`cargo test` 27/27（新增 7 例：链接提取、`logout` 白名单、凭证判定、超时上限、登录票据、空凭证拒绝、`prefs` 落盘）、`npm test` 120/120（`test/tauri-bridge.spec.ts` 新增 9 例）、`tsc -b` 零错误、`lint` 0 错误、`npm run build` 成功；`tauri dev` 只读冒烟显示窗口、MPRIS、LauncherEntry 与 `[cli] config list` / `login --check` / `recommend daily` 全部正常，4 个新命令编译注册成功，未改动真实凭证与登录态。
+
+**影响文件**：`src-tauri/src/{cli.rs,commands.rs,main.rs}`、`src-tauri/capabilities/default.json`、`src/lib/tauriBridge.ts`、`test/tauri-bridge.spec.ts`、`spec/*`
+
 ## v0.9.1 — 2026-11-12 修复「播放全部」队列条数不足
 
 **背景**：发现页每日推荐显示「共 30 首」，点击播放全部后队列抽屉只出现 10 首。实测 `recommend daily` 返回的 30 首中 20 首为 `visible:false / playFlag:false`（无版权），`Player.setQueue()` 用 `filter(t => t.playable !== false)` 直接丢弃，导致 UI 与队列数量不一致。归一化标记本身正确，问题在于队列层不应删除展示条目。

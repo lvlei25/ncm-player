@@ -20,8 +20,8 @@ static CLI_LOCK: Mutex<()> = Mutex::new(());
 /// 首命令白名单：渲染层只能下发这些子命令，参数一律以数组传递（不经过 shell）。
 const ALLOWED: &[&str] = &[
     "search", "recommend", "playlist", "song", "lyric", "state", "play", "pause", "resume", "stop",
-    "next", "prev", "seek", "volume", "queue", "user", "login", "config", "commands", "daily", "fm",
-    "--version",
+    "next", "prev", "seek", "volume", "queue", "user", "login", "logout", "config", "commands",
+    "daily", "fm", "--version",
 ];
 
 #[derive(Debug, Clone)]
@@ -154,6 +154,23 @@ pub fn extract_json(text: &str) -> Option<Value> {
         return None;
     }
     serde_json::from_str::<Value>(&text[start..=end]).ok().filter(|v| v.is_object())
+}
+
+/// 从 CLI 混合输出中提取第一个 http(s) 链接（Electron `session.ts` URL_RE 的等价实现）
+pub fn extract_login_url(text: &str) -> Option<String> {
+    for (i, _) in text.char_indices() {
+        let rest = &text[i..];
+        if !(rest.starts_with("http://") || rest.starts_with("https://")) {
+            continue;
+        }
+        let end = rest
+            .find(|c: char| c.is_whitespace() || "\"'<>)）]}".contains(c))
+            .unwrap_or(rest.len());
+        if end > "http://".len() {
+            return Some(rest[..end].to_string());
+        }
+    }
+    None
 }
 
 /// 与 runner.ts 的 ERR_PATTERNS 一致
@@ -343,5 +360,22 @@ mod tests {
         if let Some(value) = saved_prefix {
             env::set_var("NPM_CONFIG_PREFIX", value);
         }
+    }
+
+    #[test]
+    fn extracts_login_link_from_mixed_output() {
+        let text = "请使用网易云音乐 App 扫码：\nhttps://music.163.com/login?code=abc123\n";
+        assert_eq!(
+            extract_login_url(text).as_deref(),
+            Some("https://music.163.com/login?code=abc123")
+        );
+        assert_eq!(extract_login_url("(https://a.cn/x)").as_deref(), Some("https://a.cn/x"));
+        assert!(extract_login_url("没有链接").is_none());
+    }
+
+    #[test]
+    fn logout_is_whitelisted() {
+        assert!(validate(&["logout".into()]).is_ok());
+        assert!(validate(&["config".into(), "set".into(), "appId".into(), "x".into()]).is_ok());
     }
 }
