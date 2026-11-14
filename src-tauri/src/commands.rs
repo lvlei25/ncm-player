@@ -1,5 +1,6 @@
 //! 阶段 1：Tauri IPC 命令。渲染层只下发语义化参数，CLI 调用一律经过 `cli.rs` 白名单。
 
+use crate::cache;
 use crate::cli::{self, CliError};
 use crate::desktop;
 use crate::media;
@@ -7,7 +8,7 @@ use crate::mpris::Mpris;
 use crate::state::{self, AppState, Patch};
 use serde_json::{json, Value};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
@@ -66,10 +67,7 @@ fn emit_session(app: &AppHandle) {
 }
 
 fn prefs_path() -> PathBuf {
-    let base = std::env::var("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|_| {
-        PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/tmp".into())).join(".config")
-    });
-    base.join("ncm-player-tauri").join("prefs.json")
+    cache::config_dir().join("prefs.json")
 }
 
 fn login_ticket(text: &str, error: Option<&str>) -> Value {
@@ -193,25 +191,39 @@ pub fn session_logout(app: AppHandle) -> Value {
 }
 
 /// 向导完成标记独立落盘，避免与播放状态文件互相污染
+fn write_onboarded(path: &Path, value: bool) -> std::io::Result<()> {
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    let mut prefs = fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .filter(Value::is_object)
+        .unwrap_or_else(|| json!({}));
+    prefs["onboarded"] = Value::Bool(value);
+    fs::write(path, serde_json::to_string_pretty(&prefs).unwrap_or_default())?;
+    Ok(())
+}
+
 #[tauri::command]
 pub fn onboarded_set(value: bool) -> Value {
-    let path = prefs_path();
-    let result = (|| -> std::io::Result<()> {
-        if let Some(dir) = path.parent() {
-            fs::create_dir_all(dir)?;
-        }
-        let mut prefs = fs::read_to_string(&path)
-            .ok()
-            .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-            .filter(Value::is_object)
-            .unwrap_or_else(|| json!({}));
-        prefs["onboarded"] = Value::Bool(value);
-        fs::write(&path, serde_json::to_string_pretty(&prefs).unwrap_or_default())?;
-        Ok(())
-    })();
-    match result {
+    match write_onboarded(&prefs_path(), value) {
         Ok(()) => cli::ok(true),
         Err(error) => CliError::new("UNKNOWN", format!("写入向导状态失败：{error}")).to_value(),
+    }
+}
+
+/// 冷启动一次性读出落盘缓存，渲染层之后只查内存
+#[tauri::command]
+pub fn discover_cache_all() -> Value {
+    cli::ok(cache::fresh_all())
+}
+
+#[tauri::command]
+pub fn discover_cache_set(key: String, data: Value) -> Value {
+    match cache::write(&key, data) {
+        Ok(entry) => cli::ok(entry),
+        Err(error) => error.to_value(),
     }
 }
 
@@ -379,15 +391,13 @@ mod tests {
     #[test]
     fn onboarded_set_persists_prefs_without_touching_play_state() {
         let tmp = std::env::temp_dir().join(format!("ncm-prefs-{}", std::process::id()));
-        std::env::set_var("XDG_CONFIG_HOME", &tmp);
+        let path = tmp.join("prefs.json");
 
-        assert_eq!(onboarded_set(true)["ok"], true);
-        let path = prefs_path();
+        assert!(write_onboarded(&path, true).is_ok());
         assert!(fs::read_to_string(&path).unwrap().contains("\"onboarded\": true"));
-        assert_eq!(onboarded_set(false)["ok"], true);
+        assert!(write_onboarded(&path, false).is_ok());
         assert!(fs::read_to_string(&path).unwrap().contains("\"onboarded\": false"));
 
         fs::remove_dir_all(&tmp).ok();
-        std::env::remove_var("XDG_CONFIG_HOME");
     }
 }

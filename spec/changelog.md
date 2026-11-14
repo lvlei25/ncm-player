@@ -2,6 +2,23 @@
 
 倒序记录，最新在最上。每条包含：变更内容 / 原因 / 影响文件 / 验证方式。
 
+## v0.11.0 — 2026-11-14 Tauri 阶段 2 增量 C：发现页缓存与首屏提速
+
+**背景**：Tauri 壳每次进入发现页都重新拉起 CLI，实测 `recommend daily` 单次 2.7–4 s、`playlist radar` 约 1.5 s；Electron 版 `catalog.ts` 早已用 30 min LRU + 落盘缓存规避，Tauri 侧一直缺失。
+
+**改动**
+
+- `src-tauri/src/cache.rs`（新）：`CacheEntry` / `TTL_MS=30min` / `discover.json` 读写；`fresh_all()` 只返回未过期条目；key 白名单 `daily` / `playlists`，空数组与损坏文件分别拒绝写入 / 回退空缓存；`config_dir()` 作为公共配置目录供 `prefs.json` 复用。
+- `src-tauri/src/commands.rs`：新增 `discover_cache_all` / `discover_cache_set`；`onboarded_set` 抽出可注入路径的 `write_onboarded()`，消除单测对全局环境变量的依赖。
+- `src/lib/tauriBridge.ts`：内存缓存 + 启动时一次性灌入落盘数据；`catalog.daily` / `recommendPlaylists` 接入 `cachedDiscover()`，只缓存非空结果、CLI 失败不污染内存；导出 `hydrateDiscoverCache()` / `invalidateDiscoverCache()` 供冷启动与测试隔离。
+- `src-tauri/src/main.rs` 注册 2 个命令；spec 路线更新（阶段 2 仅剩 AI）。
+
+**明确不做**：AI 点歌与 AI 配置、自解码播放、Tauri deb/AppImage 交付。
+
+**验证**：`cargo test` 31/31（连续 3 次无并发竞态）、`cargo check` 零警告、`npm test` 129/129（`test/tauri-bridge.spec.ts` 新增 9 例）、`tsc -b` 零错误、`lint` 0 错误、`npm run build` 成功；`tauri dev` 首次启动写入 `discover.json`（`daily` 30 首 / `playlists` 7 个，19 KB），重启后 `recommend daily` 与 `playlist radar` 调用均为 0 次、缓存文件未重写，MPRIS / LauncherEntry / 状态事件正常。
+
+**影响文件**：`src-tauri/src/{cache.rs,commands.rs,main.rs}`、`src/lib/tauriBridge.ts`、`test/tauri-bridge.spec.ts`、`spec/*`
+
 ## v0.10.0 — 2026-11-13 Tauri 阶段 2 增量 B：登录闭环
 
 **背景**：Tauri 壳的 `session.save` / `loginStart` / `logout` 仍返回 `UNSUPPORTED`，首次配置向导无法在 Tauri 下完成；`onChange` 是空函数、`setOnboarded` 不落盘、`session.status` 每次都重复拉起 CLI。Electron 侧 `session.ts` 已具备等价实现，本轮在 Rust 侧补齐。

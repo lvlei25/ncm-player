@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod cache;
 mod cli;
 mod commands;
 mod desktop;
@@ -22,6 +23,8 @@ fn main() {
             commands::session_login_start,
             commands::session_logout,
             commands::onboarded_set,
+            commands::discover_cache_all,
+            commands::discover_cache_set,
             commands::app_info,
             commands::open_external,
             commands::window_minimize,

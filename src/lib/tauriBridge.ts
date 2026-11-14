@@ -163,6 +163,57 @@ void call<PlayStateShape>('player_state_get')
 
 const okTrue = (): Promise<IpcResult<boolean>> => Promise.resolve({ ok: true, data: true })
 
+/** 发现页双层缓存：内存 LRU + Rust 落盘；冷启动一次性灌入内存，之后读缓存不再发 IPC */
+const DISCOVER_TTL = 30 * 60_000
+interface DiscoverEntry<T = unknown> {
+  data: T
+  updatedAt: number
+}
+const discoverCache = new Map<string, { value: unknown; at: number }>()
+
+/** 冷启动恢复落盘缓存（测试也可显式调用模拟重启） */
+export async function hydrateDiscoverCache(): Promise<void> {
+  const res = await call<Record<string, DiscoverEntry>>('discover_cache_all')
+  if (!res.ok || !res.data) return
+  for (const [key, entry] of Object.entries(res.data)) {
+    if (entry && typeof entry.updatedAt === 'number' && entry.data !== undefined) {
+      discoverCache.set(key, { value: entry.data, at: entry.updatedAt })
+    }
+  }
+}
+void hydrateDiscoverCache()
+
+/** 缓存失效入口（手动刷新 / 测试隔离） */
+export function invalidateDiscoverCache(): void {
+  discoverCache.clear()
+}
+
+/** 同一 key 的并发请求合并为一次 CLI 调用（React 严格模式会重复触发 effect） */
+const discoverInflight = new Map<string, Promise<unknown>>()
+
+async function cachedDiscover<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const hit = discoverCache.get(key)
+  if (hit && Date.now() - hit.at < DISCOVER_TTL) return hit.value as T
+  const pending = discoverInflight.get(key)
+  if (pending) return (await pending) as T
+
+  const task = (async () => {
+    const value = await load()
+    // 空结果不落盘，也不污染内存（与 Electron 版 catalog.ts 一致）
+    if (Array.isArray(value) && value.length > 0) {
+      discoverCache.set(key, { value, at: Date.now() })
+      void call('discover_cache_set', { key, data: value }).catch(() => undefined)
+    }
+    return value
+  })()
+  discoverInflight.set(key, task)
+  try {
+    return (await task) as T
+  } finally {
+    discoverInflight.delete(key)
+  }
+}
+
 function playArgs(track: Track): string[] {
   const args = ['play', '--song', '--encrypted-id', track.id]
   if (track.originalId) args.push('--original-id', track.originalId)
@@ -240,19 +291,23 @@ export const tauriBridge: NcmBridge = {
           : { type, tracks, playlists: type === 'song' ? [] : playlists, total: tracks.length }
       }),
     daily: () =>
-      wrap(async () => {
-        const spec = CAPABILITY_COMMANDS.dailyRecommend[0]
-        const argv = [...spec.argv]
-        if (spec.requiresUserInput) argv.push('--userInput', '打开播放器首页，查看今日推荐歌曲')
-        return dedupeTracks(harvest(await cliJson(argv)).tracks)
-      }),
+      wrap(async () =>
+        cachedDiscover<Track[]>('daily', async () => {
+          const spec = CAPABILITY_COMMANDS.dailyRecommend[0]
+          const argv = [...spec.argv]
+          if (spec.requiresUserInput) argv.push('--userInput', '打开播放器首页，查看今日推荐歌曲')
+          return dedupeTracks(harvest(await cliJson(argv)).tracks)
+        }),
+      ),
     recommendPlaylists: () =>
-      wrap(async () => {
-        const spec = CAPABILITY_COMMANDS.recommendPlaylists[0]
-        const argv = [...spec.argv]
-        if (spec.requiresUserInput) argv.push('--userInput', '浏览播放器首页的推荐歌单')
-        return dedupePlaylists(harvest(await cliJson(argv)).playlists)
-      }),
+      wrap(async () =>
+        cachedDiscover<Playlist[]>('playlists', async () => {
+          const spec = CAPABILITY_COMMANDS.recommendPlaylists[0]
+          const argv = [...spec.argv]
+          if (spec.requiresUserInput) argv.push('--userInput', '浏览播放器首页的推荐歌单')
+          return dedupePlaylists(harvest(await cliJson(argv)).playlists)
+        }),
+      ),
     playlist: (id) =>
       wrap(async () => {
         const spec = CAPABILITY_COMMANDS.playlistDetail[0]

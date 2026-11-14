@@ -168,6 +168,15 @@
 - 明确不做（留后续）：AI 点歌与 AI 配置、发现页缓存、自解码播放、Tauri deb/AppImage 交付。
 - 验收：`cargo test` 通过、`npm test` ≥ 120 例、`tsc -b` / `lint` / `build` 全绿；`tauri dev` 下新命令注册成功、只读会话探测正常，且不改动本机真实凭证与登录态。
 
+## 3.10 追加需求 R17（v0.11.0）：Tauri 发现页缓存与首屏提速
+
+- Tauri 壳的每日推荐 / 推荐歌单需在 30 分钟 TTL 内复用缓存，避免每次进入发现页都拉起 CLI（实测 `recommend daily` 单次 2.7–4 s）。
+- 缓存分两层：进程内内存缓存 + Rust 侧落盘 `~/.config/ncm-player-tauri/discover.json`；冷启动一次性把落盘数据灌入内存，之后读缓存不再发 IPC。
+- 只缓存非空结果；CLI 失败不写盘、不污染内存；落盘 key 白名单 `daily` / `playlists`，拒绝任意键与空数组写入。
+- 与 Electron 版 `catalog.ts` 的 TTL / 空结果策略一致；搜索、歌单详情、歌词不缓存。
+- 明确不做（留后续）：AI 点歌与 AI 配置、自解码播放、Tauri deb/AppImage 交付。
+- 验收：`cargo test` ≥ 31 例、`npm test` ≥ 128 例、`tsc -b` / `lint` / `build` 全绿；`tauri dev` 首次写盘后缓存文件含完整 30 首，且重启不再出现 `recommend daily` 的 CLI 调用。
+
 ## 4. 验收结果（实测）
 
 | 指标 | 改动前 | 改动后 | 结论 |

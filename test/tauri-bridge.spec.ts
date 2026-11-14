@@ -10,6 +10,8 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: mocks.listen }))
 
 import {
   buildSearchArgs,
+  hydrateDiscoverCache,
+  invalidateDiscoverCache,
   invalidateSessionCache,
   mapPlaybackState,
   nextPlayableIndex,
@@ -40,6 +42,7 @@ const snapshot: PlaybackState = {
 
 beforeEach(() => {
   invalidateSessionCache()
+  invalidateDiscoverCache()
   mocks.invoke.mockReset()
   mocks.invoke.mockResolvedValue(ok(null))
   mocks.listen.mockReset()
@@ -310,5 +313,116 @@ describe('Tauri 桥接：IPC', () => {
 
     expect(res.ok).toBe(true)
     expect(mocks.invoke).toHaveBeenCalledWith('onboarded_set', { value: true })
+  })
+
+  it('每日推荐首次调用 CLI 并写入落盘缓存', async () => {
+    mocks.invoke.mockResolvedValueOnce(ok({
+      success: true,
+      data: { songs: [{ id: 'ENC_A', name: '歌一', duration: 200000 }] },
+    }))
+
+    const res = await tauriBridge.catalog.daily()
+
+    expect(res.ok && res.data).toHaveLength(1)
+    expect(mocks.invoke).toHaveBeenCalledWith('cli_invoke', {
+      args: expect.arrayContaining(['recommend', 'daily']),
+    })
+    expect(mocks.invoke).toHaveBeenCalledWith('discover_cache_set', {
+      key: 'daily',
+      data: expect.arrayContaining([expect.objectContaining({ name: '歌一' })]),
+    })
+  })
+
+  it('每日推荐二次读取命中内存缓存，不再调用 CLI', async () => {
+    mocks.invoke.mockResolvedValueOnce(ok({ success: true, data: { songs: [{ id: 'ENC_A', name: '歌一' }] } }))
+    await tauriBridge.catalog.daily()
+    const before = mocks.invoke.mock.calls.length
+
+    const second = await tauriBridge.catalog.daily()
+
+    expect(second.ok && second.data).toHaveLength(1)
+    expect(mocks.invoke.mock.calls.length).toBe(before)
+  })
+
+  it('冷启动恢复落盘缓存后直接命中，不发 CLI 请求', async () => {
+    const cached = [{ ...track, name: '缓存里的歌' }]
+    mocks.invoke.mockResolvedValueOnce(ok({ daily: { data: cached, updatedAt: Date.now() } }))
+
+    await hydrateDiscoverCache()
+    const res = await tauriBridge.catalog.daily()
+
+    expect(res).toEqual(ok(cached))
+    expect(mocks.invoke).toHaveBeenCalledWith('discover_cache_all', {})
+    expect(mocks.invoke.mock.calls.filter(([cmd]) => cmd === 'cli_invoke')).toHaveLength(0)
+  })
+
+  it('过期落盘数据不会被采用', async () => {
+    mocks.invoke
+      .mockResolvedValueOnce(ok({ daily: { data: [track], updatedAt: Date.now() - 31 * 60_000 } }))
+      .mockResolvedValueOnce(ok({ success: true, data: { songs: [{ id: 'ENC_B', name: '歌二' }] } }))
+
+    await hydrateDiscoverCache()
+    const res = await tauriBridge.catalog.daily()
+
+    expect(res.ok && res.data[0]?.name).toBe('歌二')
+  })
+
+  it('CLI 失败时不写盘，也不污染内存缓存', async () => {
+    mocks.invoke.mockResolvedValueOnce({ ok: false, code: 'UNAUTHORIZED', message: '尚未登录' })
+    const first = await tauriBridge.catalog.daily()
+    expect(first).toMatchObject({ ok: false, code: 'UNAUTHORIZED' })
+    expect(mocks.invoke.mock.calls.filter(([cmd]) => cmd === 'discover_cache_set')).toHaveLength(0)
+
+    mocks.invoke.mockResolvedValueOnce(ok({ success: true, data: { songs: [{ id: 'ENC_A', name: '歌一' }] } }))
+    await tauriBridge.catalog.daily()
+    expect(mocks.invoke.mock.calls.filter(([cmd]) => cmd === 'cli_invoke')).toHaveLength(2)
+  })
+
+  it('空结果不写入缓存', async () => {
+    mocks.invoke.mockResolvedValueOnce(ok({ success: true, data: { songs: [] } }))
+
+    const res = await tauriBridge.catalog.daily()
+
+    expect(res.ok && res.data).toHaveLength(0)
+    expect(mocks.invoke.mock.calls.filter(([cmd]) => cmd === 'discover_cache_set')).toHaveLength(0)
+  })
+
+  it('推荐歌单使用独立缓存键', async () => {
+    mocks.invoke.mockResolvedValueOnce(ok({
+      success: true,
+      data: { playlists: [{ id: 'PL_1', name: '我的歌单', trackCount: 3 }] },
+    }))
+
+    const res = await tauriBridge.catalog.recommendPlaylists()
+
+    expect(res.ok && res.data).toHaveLength(1)
+    expect(mocks.invoke).toHaveBeenCalledWith('discover_cache_set', {
+      key: 'playlists',
+      data: expect.arrayContaining([expect.objectContaining({ name: '我的歌单' })]),
+    })
+  })
+
+  it('缓存失效后重新拉取 CLI', async () => {
+    mocks.invoke.mockResolvedValueOnce(ok({ success: true, data: { songs: [{ id: 'ENC_A', name: '歌一' }] } }))
+    await tauriBridge.catalog.daily()
+    invalidateDiscoverCache()
+    mocks.invoke.mockResolvedValueOnce(ok({ success: true, data: { songs: [{ id: 'ENC_B', name: '歌二' }] } }))
+
+    const res = await tauriBridge.catalog.daily()
+
+    expect(res.ok && res.data[0]?.name).toBe('歌二')
+    expect(mocks.invoke.mock.calls.filter(([cmd]) => cmd === 'cli_invoke')).toHaveLength(2)
+  })
+
+  it('并发的每日推荐请求合并为一次 CLI 调用', async () => {
+    mocks.invoke.mockResolvedValueOnce(ok({ success: true, data: { songs: [{ id: 'ENC_A', name: '歌一' }] } }))
+
+    const [first, second] = await Promise.all([
+      tauriBridge.catalog.daily(),
+      tauriBridge.catalog.daily(),
+    ])
+
+    expect(first).toEqual(second)
+    expect(mocks.invoke.mock.calls.filter(([cmd]) => cmd === 'cli_invoke')).toHaveLength(1)
   })
 })

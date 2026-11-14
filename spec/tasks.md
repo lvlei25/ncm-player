@@ -117,7 +117,7 @@
 
 # v0.7.0 Tauri 迁移（进行中）
 
-路线：**阶段 0** 空壳验证 ✅ → **阶段 1** Rust CLI 桥接 ✅ → **阶段 2** 状态持久化 ✅ / 登录闭环（v0.10.0）/ AI 与缓存待做 → **阶段 3** MPRIS 真实播控 + 托盘 ✅ / deb/AppImage 交付待做。
+路线：**阶段 0** 空壳验证 ✅ → **阶段 1** Rust CLI 桥接 ✅ → **阶段 2** 状态持久化 / 登录闭环 / 发现页缓存 ✅ / AI 待做 → **阶段 3** MPRIS 真实播控 + 托盘 ✅ / deb/AppImage 交付待做。
 
 ## T16 阶段 1：Rust CLI 桥接
 
@@ -193,6 +193,19 @@
 - [x] 单测：Rust 新增 5 例（白名单/链接提取/凭证判定/超时上限/票据），前端新增 9 例（命令转发、错误码、缓存、事件订阅、向导标记）
 - [x] 门禁：`cargo test` 27/27、`npm test` 120/120、`tsc -b` 零错误、`lint` 0 错误、`build` 成功
 - [x] `tauri dev` 只读冒烟：窗口与 MPRIS/LauncherEntry 启动正常，日志出现 `[cli] config list` / `login --check` / `recommend daily`；4 个新命令编译注册成功，未改动真实凭证与登录态
+
+---
+
+# v0.11.0 Tauri 阶段 2 增量 C：发现页缓存
+
+- [x] `src-tauri/src/cache.rs`（新）：`CacheEntry` / 30 min TTL / `discover.json` 读写 / `fresh_all()` / key 白名单 / 空结果拒绝
+- [x] `src-tauri/src/commands.rs`：`discover_cache_all` / `discover_cache_set`，`prefs_path()` 复用公共配置目录；`write_onboarded()` 消除单测环境变量竞态
+- [x] `src-tauri/src/main.rs`：注册 2 个新命令
+- [x] `src/lib/tauriBridge.ts`：内存缓存 + 启动灌入落盘数据 + `daily` / `recommendPlaylists` 接入，提供缓存失效入口
+- [x] 单测：Rust 新增 4 例（TTL / 读写 / 白名单与空结果 / 损坏文件回退），前端新增 8 例（命中 / 落盘恢复 / 过期 / 失败 / 空结果 / 失效 / 歌单独立键）
+- [x] 门禁：`cargo test` 31/31（连续 3 次稳定）、`cargo check` 零警告、`npm test` 129/129、`tsc -b` 零错误、`lint` 0 错误、`build` 成功
+- [x] 实机：首次启动写入 `discover.json`（`daily` 30 首 / `playlists` 7 个）；重启后 `recommend daily` / `playlist radar` 均为 0 次，缓存未重写，MPRIS / LauncherEntry 正常
+- [x] 附带修复：React 严格模式并发请求合并为一次 CLI 调用（`discoverInflight`）
 
 ## 后续可做（未在本轮）
 
