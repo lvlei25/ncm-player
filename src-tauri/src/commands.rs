@@ -191,18 +191,104 @@ pub fn session_logout(app: AppHandle) -> Value {
 }
 
 /// 向导完成标记独立落盘，避免与播放状态文件互相污染
-fn write_onboarded(path: &Path, value: bool) -> std::io::Result<()> {
-    if let Some(dir) = path.parent() {
-        fs::create_dir_all(dir)?;
-    }
-    let mut prefs = fs::read_to_string(path)
+fn read_prefs(path: &Path) -> Value {
+    fs::read_to_string(path)
         .ok()
         .and_then(|text| serde_json::from_str::<Value>(&text).ok())
         .filter(Value::is_object)
-        .unwrap_or_else(|| json!({}));
-    prefs["onboarded"] = Value::Bool(value);
-    fs::write(path, serde_json::to_string_pretty(&prefs).unwrap_or_default())?;
+        .unwrap_or_else(|| json!({}))
+}
+
+fn write_prefs(path: &Path, prefs: &Value) -> std::io::Result<()> {
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    fs::write(path, serde_json::to_string_pretty(prefs).unwrap_or_default())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+    }
     Ok(())
+}
+
+fn write_onboarded(path: &Path, value: bool) -> std::io::Result<()> {
+    let mut prefs = read_prefs(path);
+    prefs["onboarded"] = Value::Bool(value);
+    write_prefs(path, &prefs)
+}
+
+const AI_DEFAULT_BASE_URL: &str = "https://api.deepseek.com/v1";
+const AI_DEFAULT_MODEL: &str = "deepseek-chat";
+const AI_KEY_SALT: &[u8] = b"ncm-tauri-ai";
+
+/// 轻量混淆：Tauri 无 Electron safeStorage，避免 Key 明文落盘（非系统级加密）
+fn obfuscate_key(plain: &str) -> String {
+    let mut out = String::from("xor:");
+    for (i, byte) in plain.as_bytes().iter().enumerate() {
+        out.push_str(&format!("{:02x}", byte ^ AI_KEY_SALT[i % AI_KEY_SALT.len()]));
+    }
+    out
+}
+
+fn reveal_key(encoded: &str) -> String {
+    let hex = encoded.strip_prefix("xor:").unwrap_or(encoded);
+    let bytes: Vec<u8> = (0..hex.len())
+        .step_by(2)
+        .filter_map(|i| u8::from_str_radix(&hex[i..i + 2], 16).ok())
+        .enumerate()
+        .map(|(i, byte)| byte ^ AI_KEY_SALT[i % AI_KEY_SALT.len()])
+        .collect();
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
+fn ai_config_from(prefs: &Value) -> Value {
+    let base_url = prefs
+        .get("aiBaseUrl")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(AI_DEFAULT_BASE_URL)
+        .to_string();
+    let model = prefs
+        .get("aiModel")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(AI_DEFAULT_MODEL)
+        .to_string();
+    let api_key = reveal_key(prefs.get("aiApiKeyEnc").and_then(Value::as_str).unwrap_or(""));
+    json!({ "baseUrl": base_url, "model": model, "apiKey": api_key, "hasKey": !api_key.is_empty() })
+}
+
+fn write_ai_config(
+    path: &Path,
+    base_url: Option<String>,
+    model: Option<String>,
+    api_key: Option<String>,
+) -> std::io::Result<()> {
+    let mut prefs = read_prefs(path);
+    if let Some(value) = base_url {
+        let value = value.trim();
+        if !value.is_empty() {
+            prefs["aiBaseUrl"] = Value::String(value.to_string());
+        }
+    }
+    if let Some(value) = model {
+        let value = value.trim();
+        if !value.is_empty() {
+            prefs["aiModel"] = Value::String(value.to_string());
+        }
+    }
+    if let Some(value) = api_key {
+        let value = value.trim();
+        if value.is_empty() {
+            if let Some(object) = prefs.as_object_mut() {
+                object.remove("aiApiKeyEnc");
+            }
+        } else {
+            prefs["aiApiKeyEnc"] = Value::String(obfuscate_key(value));
+        }
+    }
+    write_prefs(path, &prefs)
 }
 
 #[tauri::command]
@@ -224,6 +310,19 @@ pub fn discover_cache_set(key: String, data: Value) -> Value {
     match cache::write(&key, data) {
         Ok(entry) => cli::ok(entry),
         Err(error) => error.to_value(),
+    }
+}
+
+#[tauri::command]
+pub fn ai_config_get() -> Value {
+    cli::ok(ai_config_from(&read_prefs(&prefs_path())))
+}
+
+#[tauri::command]
+pub fn ai_config_set(base_url: Option<String>, model: Option<String>, api_key: Option<String>) -> Value {
+    match write_ai_config(&prefs_path(), base_url, model, api_key) {
+        Ok(()) => cli::ok(true),
+        Err(error) => CliError::new("UNKNOWN", format!("写入 AI 配置失败：{error}")).to_value(),
     }
 }
 
@@ -399,5 +498,54 @@ mod tests {
         assert!(fs::read_to_string(&path).unwrap().contains("\"onboarded\": false"));
 
         fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn ai_key_obfuscation_round_trips() {
+        let encoded = obfuscate_key("sk-test-123");
+        assert!(encoded.starts_with("xor:"));
+        assert!(!encoded.contains("sk-test-123"));
+        assert_eq!(reveal_key(&encoded), "sk-test-123");
+        assert_eq!(reveal_key(""), "");
+    }
+
+    #[test]
+    fn ai_config_defaults_without_prefs() {
+        let config = ai_config_from(&json!({}));
+        assert_eq!(config["baseUrl"], AI_DEFAULT_BASE_URL);
+        assert_eq!(config["model"], AI_DEFAULT_MODEL);
+        assert_eq!(config["apiKey"], "");
+        assert_eq!(config["hasKey"], false);
+    }
+
+    #[test]
+    fn ai_config_updates_only_provided_fields_and_keeps_key() {
+        let tmp = std::env::temp_dir().join(format!("ncm-ai-{}", std::process::id()));
+        let path = tmp.join("prefs.json");
+
+        write_ai_config(&path, None, None, Some("sk-one".into())).unwrap();
+        write_ai_config(&path, Some("https://example.com/v1".into()), Some("custom".into()), None).unwrap();
+        let config = ai_config_from(&read_prefs(&path));
+        assert_eq!(config["baseUrl"], "https://example.com/v1");
+        assert_eq!(config["model"], "custom");
+        assert_eq!(config["apiKey"], "sk-one");
+
+        write_ai_config(&path, None, None, Some("".into())).unwrap();
+        assert_eq!(ai_config_from(&read_prefs(&path))["hasKey"], false);
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn prefs_file_is_private() {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let tmp = std::env::temp_dir().join(format!("ncm-prefs-mode-{}", std::process::id()));
+            let path = tmp.join("prefs.json");
+            write_prefs(&path, &json!({"onboarded": true})).unwrap();
+            let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600);
+            fs::remove_dir_all(&tmp).ok();
+        }
     }
 }

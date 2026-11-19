@@ -52,7 +52,7 @@ export async function localChat(text: string): Promise<AiReply> {
   }
 
   const keyword = t
-    .replace(/^(帮我|给我|我想|想|请|麻烦)?\s*(播放|放|来点|听|搜索|搜一下|搜|找)\s*(一下)?\s*/u, '')
+    .replace(/^(帮我|给我|我想|想|请|麻烦)?\s*(播放|来点|搜一下|搜索|放点|放|听|搜|找)\s*(一下)?\s*/u, '')
     .replace(/[，。！？~…]+$/u, '')
     .trim()
 

@@ -9,6 +9,7 @@ import { listen } from '@tauri-apps/api/event'
 import type { NcmBridge } from '../shared/api'
 import { PLAY_MODES } from '../shared/types'
 import type {
+  AiConfig,
   IpcResult,
   LoginTicket,
   NcmErrorCode,
@@ -25,6 +26,7 @@ import type {
 import { CAPABILITY_COMMANDS, fillTemplate } from '../../electron/ncm/command-map'
 import { extractLyricPayload } from '../../electron/ncm/lyric'
 import { dedupePlaylists, dedupeTracks, harvest, normalizeSearch } from '../../electron/ncm/normalize'
+import { tauriChat, type ToolOutcome } from './tauriAi'
 
 type Json = Record<string, unknown> | null
 
@@ -218,6 +220,88 @@ function playArgs(track: Track): string[] {
   const args = ['play', '--song', '--encrypted-id', track.id]
   if (track.originalId) args.push('--original-id', track.originalId)
   return args
+}
+
+/** AI 工具执行器：只走 Tauri 桥接已有的目录 / 播控 / CLI 命令 */
+async function execAiTool(name: string, args: Record<string, unknown>): Promise<ToolOutcome> {
+  const keyword = typeof args.keyword === 'string' ? args.keyword : ''
+  const searchTracks = async (): Promise<Track[]> => {
+    const res = await tauriBridge.catalog.search('song', keyword)
+    return res.ok ? res.data.tracks.filter((track) => track.playable !== false) : []
+  }
+
+  if (name === 'play_by_keyword') {
+    const tracks = await searchTracks()
+    if (tracks.length === 0) {
+      return { ok: false, summary: `搜索「${keyword}」失败`, content: '没有找到可播放的歌曲' }
+    }
+    const limit = Math.min(Math.max(Number(args.limit ?? 5), 1), 10)
+    const selected = tracks.slice(0, limit)
+    const res = await tauriBridge.player.playQueue(selected, 0)
+    return {
+      ok: res.ok,
+      summary: res.ok ? `播放「${selected[0].name}」，队列 ${selected.length} 首` : '播放失败',
+      content: selected.map((track, i) => `${i + 1}. ${track.name} - ${track.artists.join('/')}`).join('\n'),
+    }
+  }
+
+  if (name === 'search_songs') {
+    const tracks = await searchTracks()
+    return {
+      ok: true,
+      summary: `搜索「${keyword}」得到 ${tracks.length} 首`,
+      content: tracks.slice(0, 8).map((track, i) => `${i + 1}. ${track.name} - ${track.artists.join('/')}`).join('\n'),
+    }
+  }
+
+  if (name === 'pause' || name === 'resume') {
+    const state = await tauriBridge.player.state()
+    const status = state.ok && state.data ? state.data.status : 'stopped'
+    if ((name === 'pause' && status === 'playing') || (name === 'resume' && status === 'paused')) {
+      const res = await tauriBridge.player.toggle()
+      return { ok: res.ok, summary: name === 'pause' ? '已暂停' : '已继续播放', content: name }
+    }
+    return { ok: true, summary: name === 'pause' ? '已暂停' : '已继续播放', content: name }
+  }
+
+  if (name === 'next_track' || name === 'previous_track') {
+    const res = name === 'next_track' ? await tauriBridge.player.next() : await tauriBridge.player.prev()
+    return { ok: res.ok, summary: name === 'next_track' ? '已切到下一首' : '已回到上一首', content: name }
+  }
+
+  if (name === 'set_volume') {
+    const level = Number(args.level ?? 60)
+    const res = await tauriBridge.player.volume(level)
+    return { ok: res.ok, summary: `音量设为 ${Math.round(level)}%`, content: `volume=${level}` }
+  }
+
+  if (name === 'daily_recommend') {
+    const res = await tauriBridge.catalog.daily()
+    if (!res.ok || res.data.length === 0) {
+      return { ok: false, summary: '每日推荐为空', content: '空' }
+    }
+    const tracks = res.data.filter((track) => track.playable !== false)
+    const play = await tauriBridge.player.playQueue(tracks.slice(0, 10), 0)
+    return {
+      ok: play.ok,
+      summary: play.ok ? `播放每日推荐第一首「${tracks[0].name}」` : '播放失败',
+      content: tracks[0].name,
+    }
+  }
+
+  if (name === 'create_playlist') {
+    const playlistName = typeof args.name === 'string' ? args.name : '我的歌单'
+    const res = await call<Json>('cli_invoke', {
+      args: ['playlist', 'create', '--playlistName', playlistName, '--userInput', `创建歌单 ${playlistName}`],
+    })
+    return {
+      ok: res.ok,
+      summary: res.ok ? `已创建歌单「${playlistName}」` : '创建歌单失败',
+      content: playlistName,
+    }
+  }
+
+  return { ok: false, summary: `未知工具 ${name}`, content: 'unknown tool' }
 }
 
 /** 会话探测 60s 缓存，与 Electron 版 session.ts 一致 */
@@ -495,9 +579,22 @@ export const tauriBridge: NcmBridge = {
   },
 
   ai: {
-    chat: () => unsupported('AI 点歌'),
-    configGet: () => unsupported('AI 配置'),
-    configSet: () => unsupported('AI 配置'),
+    chat: (messages) =>
+      wrap(async () => {
+        const config = await tauriBridge.ai.configGet()
+        if (!config.ok) throw new CliInvokeError(config.code, config.message)
+        const value: AiConfig = config.data ?? { baseUrl: '', model: '', apiKey: '', hasKey: false }
+        return tauriChat(messages, value, execAiTool)
+      }),
+    configGet: () => call<AiConfig>('ai_config_get'),
+    configSet: (payload) =>
+      call<boolean>('ai_config_set', {
+        baseUrl: payload.baseUrl,
+        model: payload.model,
+        apiKey: payload.apiKey,
+        base_url: payload.baseUrl,
+        api_key: payload.apiKey,
+      }),
   },
 
   app: {

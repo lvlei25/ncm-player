@@ -2,6 +2,39 @@
 
 倒序记录，最新在最上。每条包含：变更内容 / 原因 / 影响文件 / 验证方式。
 
+## v0.12.1 — 2026-11-19 修复封面加载失败与首屏慢
+
+**背景**：用户反馈首屏渲染慢，截图里数据与文字已到位但封面全是黑胶占位图。CDP 抓包显示 20 次 `net::ERR_PROXY_CONNECTION_FAILED`：GNOME 手动代理指向未运行的 `127.0.0.1:7897`，Electron 的 Chromium 继承了该代理，而同一 URL 用 curl 直连仅 0.14–1 s。启动参数 `proxy-bypass-list` 与 `setProxy({ mode:'system', proxyBypassRules })` 均未能压过 GNOME 设置。
+
+**改动**
+
+- `electron/main.ts`：改用 `session.defaultSession.setProxy({ mode: 'direct' })`；渲染层只有封面图片请求，AI 模型调用在主进程 `fetch`，直连不影响功能；`NCM_DEBUG=1` 输出 `resolveProxy` 结果便于核对。
+- `src/lib/coverUrl.ts`（新）：统一生成 CDN 缩略图 URL（`imageView=1&thumbnail=480x480&quality=80`），已有缩略参数的歌单封面保持原样。
+- `src/components/Cover.tsx`：改用缩略图、取消 `loading="lazy"`、地址变化时重置失败状态以允许重试。
+- `src/App.tsx`：模糊氛围背景复用缩略图，避免加载 1440 px 原图。
+
+**验证**：`npm test` 145/145（新增 `test/cover.spec.ts` 4 例）、`tsc -b` 零错误、`lint` 0 错误、`build` 成功、`cargo test` 35/35；安装版实机日志 `[proxy] cover CDN => DIRECT`，CDP 读取 29/29 张封面全部加载成功、网络失败 0，缩略图自然宽度 480、`loading="eager"`。
+
+**影响文件**：`electron/main.ts`、`src/lib/coverUrl.ts`、`src/components/Cover.tsx`、`src/App.tsx`、`test/cover.spec.ts`、`spec/*`
+
+## v0.12.0 — 2026-11-19 Tauri 阶段 2 增量 D：AI 点歌与配置（阶段 2 完成）
+
+**背景**：`tauriBridge.ai.chat` / `configGet` / `configSet` 仍返回 `UNSUPPORTED`，Tauri 壳的 AI 面板无法使用；Electron 侧已有本地规则兜底 + OpenAI 兼容 function calling 的完整实现，本轮对齐。
+
+**改动**
+
+- `src-tauri/src/commands.rs`：新增 `ai_config_get` / `ai_config_set`，prefs 统一读写并设 0600 权限；API Key 以 XOR+hex 混淆落盘（**非 Electron `safeStorage` 等价加密**，安全边界较低，明文仅在渲染层内存中用于请求）；未传字段保留原值、传空 Key 清空。
+- `src/lib/tauriAi.ts`（新）：提示词、9 个工具定义、本地规则兜底与最多 3 轮 function calling，内容与 Electron 侧一致。
+- `src/lib/tauriBridge.ts`：AI 三方法接入；工具执行器复用桥接的目录 / 播控 / CLI 命令；远端异常回落本地规则并说明原因；配置读取失败原样透传。
+- `electron/ai/local.ts` + `src/lib/tauriAi.ts`：同步修正「放点 X」被旧正则拆成「点 X」的问题（长词优先匹配）。
+- `src-tauri/src/main.rs`：注册 2 个 AI 配置命令。
+
+**明确不做**：Tauri deb/AppImage 交付、自解码播放、红心/收藏/搜索分页/歌单增删。
+
+**验证**：`cargo test` 35/35、`cargo check` 零警告、`npm test` 141/141（`test/tauri-bridge.spec.ts` 新增 12 例）、`tsc -b` 零错误、`lint` 0 错误、`npm run build` 成功；`tauri dev` 启动后无 AI 配置异常，`prefs.json` 时间戳与内容未变（不改动已有 Key）。
+
+**影响文件**：`src-tauri/src/{commands.rs,main.rs}`、`src/lib/{tauriBridge.ts,tauriAi.ts}`、`electron/ai/local.ts`、`test/tauri-bridge.spec.ts`、`spec/*`
+
 ## v0.11.0 — 2026-11-14 Tauri 阶段 2 增量 C：发现页缓存与首屏提速
 
 **背景**：Tauri 壳每次进入发现页都重新拉起 CLI，实测 `recommend daily` 单次 2.7–4 s、`playlist radar` 约 1.5 s；Electron 版 `catalog.ts` 早已用 30 min LRU + 落盘缓存规避，Tauri 侧一直缺失。

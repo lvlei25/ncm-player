@@ -117,7 +117,7 @@
 
 # v0.7.0 Tauri 迁移（进行中）
 
-路线：**阶段 0** 空壳验证 ✅ → **阶段 1** Rust CLI 桥接 ✅ → **阶段 2** 状态持久化 / 登录闭环 / 发现页缓存 ✅ / AI 待做 → **阶段 3** MPRIS 真实播控 + 托盘 ✅ / deb/AppImage 交付待做。
+路线：**阶段 0** 空壳验证 ✅ → **阶段 1** Rust CLI 桥接 ✅ → **阶段 2** 状态持久化 / 登录闭环 / 发现页缓存 / AI 点歌与配置 ✅（阶段完成）→ **阶段 3** MPRIS 真实播控 + 托盘 ✅ / deb/AppImage 交付待做。
 
 ## T16 阶段 1：Rust CLI 桥接
 
@@ -206,6 +206,29 @@
 - [x] 门禁：`cargo test` 31/31（连续 3 次稳定）、`cargo check` 零警告、`npm test` 129/129、`tsc -b` 零错误、`lint` 0 错误、`build` 成功
 - [x] 实机：首次启动写入 `discover.json`（`daily` 30 首 / `playlists` 7 个）；重启后 `recommend daily` / `playlist radar` 均为 0 次，缓存未重写，MPRIS / LauncherEntry 正常
 - [x] 附带修复：React 严格模式并发请求合并为一次 CLI 调用（`discoverInflight`）
+
+---
+
+# v0.12.0 Tauri 阶段 2 增量 D：AI 点歌与配置
+
+- [x] `src-tauri/src/commands.rs`：`ai_config_get` / `ai_config_set`，prefs 统一读写与 0600 权限、Key 混淆与还原
+- [x] `src/lib/tauriAi.ts`（新）：提示词、9 个工具定义、本地规则兜底与最多 3 轮 function calling（对齐 Electron 侧）
+- [x] `src/lib/tauriBridge.ts`：AI 三方法接入，工具执行器复用桥接的目录/播控/CLI 命令，远端失败回落本地
+- [x] 单测：Rust 新增 4 例（混淆还原/默认值/字段保留/文件权限），前端新增 12 例（配置转发/本地规则/远端循环/失败回落/工具调用）
+- [x] 附带修复：两端同步修正「放点 X」被旧正则拆成「点 X」（`electron/ai/local.ts` + `tauriAi.ts`）
+- [x] 门禁：`cargo test` 35/35、`cargo check` 零警告、`npm test` 141/141、`tsc -b` 零错误、`lint` 0 错误、`build` 成功
+- [x] 实机：`tauri dev` 无 AI 配置异常，`prefs.json` 时间戳与内容未变（不改动已有 Key）
+
+---
+
+# v0.12.1 修复：封面加载失败与首屏慢
+
+- [x] 根因：GNOME 系统代理指向未运行的 `127.0.0.1:7897`，Chromium 把封面请求发到代理后 `ERR_PROXY_CONNECTION_FAILED`；CDN 直连实测仅 0.14–1 s
+- [x] `electron/main.ts`：`session.setProxy({ mode: 'direct' })`，渲染层只承载封面请求，AI 调用在主进程直连；`NCM_DEBUG=1` 输出 `resolveProxy` 便于核对
+- [x] `src/lib/coverUrl.ts`（新） + `Cover.tsx` + `App.tsx`：统一追加 480×480 CDN 缩略参数（147 KB → 15 KB）、取消 `lazy`、地址变化时重置失败态；已有缩略参数不重复追加
+- [x] 单测：`test/cover.spec.ts` 4 例（空地址 / 原图追加 / 已有参数保留 / 查询串合并）
+- [x] 门禁：`npm test` 145/145、`tsc -b` 零错误、`lint` 0 错误、`build` 成功、`cargo test` 35/35
+- [x] 安装版实机：`[proxy] cover CDN => DIRECT`，29/29 张封面加载成功、网络失败 0，`loading="eager"` 且缩略图自然宽度 480
 
 ## 后续可做（未在本轮）
 

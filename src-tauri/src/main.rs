@@ -25,6 +25,8 @@ fn main() {
             commands::onboarded_set,
             commands::discover_cache_all,
             commands::discover_cache_set,
+            commands::ai_config_get,
+            commands::ai_config_set,
             commands::app_info,
             commands::open_external,
             commands::window_minimize,

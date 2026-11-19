@@ -7,6 +7,7 @@ import { QueueDrawer } from './components/QueueDrawer'
 import { RightPanel, type PanelTab } from './components/RightPanel'
 import { Sidebar } from './components/Sidebar'
 import { TitleBar } from './components/TitleBar'
+import { thumbnailUrl } from './lib/coverUrl'
 import { useAppStore } from './lib/store'
 import { Discover } from './pages/Discover'
 import { NowPlaying } from './pages/NowPlaying'
@@ -79,7 +80,7 @@ export default function App() {
       {/* 氛围背景：当前封面的模糊大图 */}
       {current?.coverUrl && (
         <img
-          src={current.coverUrl}
+          src={thumbnailUrl(current.coverUrl)}
           alt=""
           aria-hidden
           className="pointer-events-none absolute -right-24 -top-24 h-[520px] w-[520px] scale-110 rounded-full object-cover opacity-[0.16] blur-3xl"

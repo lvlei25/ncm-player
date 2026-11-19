@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IpcResult, PlaybackState, Track } from '../src/shared/types'
 
 const mocks = vi.hoisted(() => ({
@@ -17,6 +17,7 @@ import {
   nextPlayableIndex,
   tauriBridge,
 } from '../src/lib/tauriBridge'
+import { AI_SYSTEM_PROMPT, AI_TOOLS } from '../src/lib/tauriAi'
 
 const ok = <T>(data: T): IpcResult<T> => ({ ok: true, data })
 
@@ -136,9 +137,14 @@ describe('Tauri 桥接：IPC', () => {
     expect(res).toEqual({ ok: false, code: 'UNAUTHORIZED', message: '尚未登录' })
   })
 
-  it('AI 点歌仍留待后续阶段', async () => {
-    const chat = await tauriBridge.ai.chat([{ role: 'user', content: '放点音乐' }])
-    expect(chat).toMatchObject({ ok: false, code: 'UNSUPPORTED' })
+  it('未配置模型 Key 时 AI 走本地规则', async () => {
+    mocks.invoke.mockResolvedValueOnce(ok({ baseUrl: '', model: '', apiKey: '', hasKey: false }))
+
+    const chat = await tauriBridge.ai.chat([{ role: 'user', content: '下一首' }])
+
+    expect(chat.ok && chat.data.local).toBe(true)
+    expect(chat.ok && chat.data.reply).toBe('换到下一首了。')
+    expect(mocks.invoke).toHaveBeenCalledWith('ai_config_get', {})
   })
 
   it('player.state 走 Rust player_snapshot 而不是 CLI 轮询', async () => {
@@ -424,5 +430,176 @@ describe('Tauri 桥接：IPC', () => {
 
     expect(first).toEqual(second)
     expect(mocks.invoke.mock.calls.filter(([cmd]) => cmd === 'cli_invoke')).toHaveLength(1)
+  })
+})
+
+afterEach(() => vi.unstubAllGlobals())
+
+describe('Tauri 桥接：AI 点歌与配置', () => {
+  const withKey = { baseUrl: 'https://api.test/v1', model: 'deepseek-chat', apiKey: 'sk-test', hasKey: true }
+  const noKey = { baseUrl: '', model: '', apiKey: '', hasKey: false }
+
+  function stubFetch(
+    ...responses: Array<{ status?: number; payload?: unknown; reject?: boolean }>
+  ) {
+    const fn = vi.fn()
+    for (const response of responses) {
+      if (response.reject) fn.mockRejectedValueOnce(new Error('network'))
+      else {
+        fn.mockResolvedValueOnce({
+          ok: (response.status ?? 200) < 400,
+          status: response.status ?? 200,
+          json: async () => response.payload ?? {},
+          text: async () => 'model error',
+        })
+      }
+    }
+    vi.stubGlobal('fetch', fn)
+    return fn
+  }
+
+  const assistantReply = (content: string, toolCalls?: unknown[]) => ({
+    choices: [{ message: { content, ...(toolCalls ? { tool_calls: toolCalls } : {}) } }],
+  })
+
+  it('configGet 转发到 Rust ai_config_get', async () => {
+    mocks.invoke.mockResolvedValueOnce(ok(withKey))
+
+    const res = await tauriBridge.ai.configGet()
+
+    expect(mocks.invoke).toHaveBeenCalledWith('ai_config_get', {})
+    expect(res).toEqual(ok(withKey))
+  })
+
+  it('configSet 转发并兼容 camelCase / snake_case 键名', async () => {
+    await tauriBridge.ai.configSet({ baseUrl: 'https://x/v1', model: 'custom', apiKey: 'sk-new' })
+
+    expect(mocks.invoke).toHaveBeenCalledWith('ai_config_set', expect.objectContaining({
+      baseUrl: 'https://x/v1', base_url: 'https://x/v1',
+      model: 'custom',
+      apiKey: 'sk-new', api_key: 'sk-new',
+    }))
+  })
+
+  it('提示词与工具定义覆盖九种播控能力', () => {
+    expect(AI_SYSTEM_PROMPT).toContain('优先调用工具')
+    expect(AI_TOOLS).toHaveLength(9)
+    expect(AI_TOOLS.map((tool) => tool.function.name)).toEqual(expect.arrayContaining([
+      'play_by_keyword', 'search_songs', 'pause', 'resume', 'next_track',
+      'previous_track', 'set_volume', 'daily_recommend', 'create_playlist',
+    ]))
+  })
+
+  it('本地规则：音量数字执行 set_volume 工具', async () => {
+    mocks.invoke.mockResolvedValueOnce(ok(noKey))
+
+    const res = await tauriBridge.ai.chat([{ role: 'user', content: '音量调到 40' }])
+
+    expect(res.ok && res.data.local).toBe(true)
+    expect(res.ok && res.data.reply).toBe('音量已调到 40%。')
+    expect(mocks.invoke).toHaveBeenCalledWith('cli_invoke', { args: ['volume', '40'] })
+  })
+
+  it('本地规则：关键词点歌走搜索与播放桥接', async () => {
+    mocks.invoke
+      .mockResolvedValueOnce(ok(noKey))
+      .mockResolvedValueOnce(ok({ success: true, data: { songs: [{ id: 'ENC_A', name: '晴天', duration: 200000 }] } }))
+
+    const res = await tauriBridge.ai.chat([{ role: 'user', content: '放点周杰伦' }])
+
+    expect(res.ok && res.data.reply).toBe('为你播放「周杰伦」相关的歌，其余已排队。')
+    expect(res.ok && res.data.steps[0]?.tool).toBe('play_by_keyword')
+    expect(mocks.invoke).toHaveBeenCalledWith('cli_invoke', {
+      args: expect.arrayContaining(['search', 'song', '--keyword', '周杰伦']),
+    })
+  })
+
+  it('配置 Key 后远端直接回复', async () => {
+    const fetchMock = stubFetch({ payload: assistantReply('已为你安排') })
+    mocks.invoke.mockResolvedValueOnce(ok(withKey))
+
+    const res = await tauriBridge.ai.chat([{ role: 'user', content: '你好' }])
+
+    expect(res.ok && res.data.reply).toBe('已为你安排')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('远端请求使用 Bearer、model 与 tools 参数', async () => {
+    const fetchMock = stubFetch({ payload: assistantReply('好的') })
+    mocks.invoke.mockResolvedValueOnce(ok(withKey))
+
+    await tauriBridge.ai.chat([{ role: 'user', content: '来点歌' }])
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>
+    expect(url).toBe('https://api.test/v1/chat/completions')
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sk-test')
+    expect(body.model).toBe('deepseek-chat')
+    expect(body.tools).toEqual(AI_TOOLS)
+  })
+
+  it('远端 function calling 执行工具后继续对话', async () => {
+    stubFetch(
+      { payload: assistantReply('', [
+        { id: 'call-1', function: { name: 'set_volume', arguments: '{"level":35}' } },
+      ]) },
+      { payload: assistantReply('调好了') },
+    )
+    mocks.invoke.mockResolvedValueOnce(ok(withKey))
+
+    const res = await tauriBridge.ai.chat([{ role: 'user', content: '音量 35' }])
+
+    expect(res.ok && res.data.steps).toEqual([{ tool: 'set_volume', summary: '音量设为 35%', ok: true }])
+    expect(res.ok && res.data.reply).toBe('调好了')
+    expect(mocks.invoke).toHaveBeenCalledWith('cli_invoke', { args: ['volume', '35'] })
+  })
+
+  it('远端调用失败时回落本地规则并说明原因', async () => {
+    stubFetch({ reject: true })
+    mocks.invoke.mockResolvedValueOnce(ok(withKey))
+
+    const res = await tauriBridge.ai.chat([{ role: 'user', content: '下一首' }])
+
+    expect(res.ok && res.data.local).toBe(true)
+    expect(res.ok && res.data.reply).toContain('模型调用失败，已使用本地理解')
+  })
+
+  it('配置读取失败时直接返回错误而不调用模型', async () => {
+    mocks.invoke.mockResolvedValueOnce({ ok: false, code: 'UNKNOWN', message: '读取失败' })
+
+    const res = await tauriBridge.ai.chat([{ role: 'user', content: '你好' }])
+
+    expect(res).toMatchObject({ ok: false, code: 'UNKNOWN', message: '读取失败' })
+  })
+
+  it('未知工具返回失败步骤', async () => {
+    stubFetch(
+      { payload: assistantReply('', [
+        { id: 'call-x', function: { name: 'not_a_tool', arguments: '{}' } },
+      ]) },
+      { payload: assistantReply('抱歉') },
+    )
+    mocks.invoke.mockResolvedValueOnce(ok(withKey))
+
+    const res = await tauriBridge.ai.chat([{ role: 'user', content: '随便' }])
+
+    expect(res.ok && res.data.steps[0]).toMatchObject({ tool: 'not_a_tool', ok: false })
+  })
+
+  it('create_playlist 工具走 cli_invoke 白名单命令', async () => {
+    stubFetch(
+      { payload: assistantReply('', [
+        { id: 'call-p', function: { name: 'create_playlist', arguments: '{"name":"通勤","keyword":"轻音乐"}' } },
+      ]) },
+      { payload: assistantReply('建好了') },
+    )
+    mocks.invoke.mockResolvedValueOnce(ok(withKey))
+
+    const res = await tauriBridge.ai.chat([{ role: 'user', content: '建个歌单' }])
+
+    expect(res.ok && res.data.steps[0]?.ok).toBe(true)
+    expect(mocks.invoke).toHaveBeenCalledWith('cli_invoke', {
+      args: expect.arrayContaining(['playlist', 'create', '--playlistName', '通勤']),
+    })
   })
 })

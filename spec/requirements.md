@@ -177,6 +177,22 @@
 - 明确不做（留后续）：AI 点歌与 AI 配置、自解码播放、Tauri deb/AppImage 交付。
 - 验收：`cargo test` ≥ 31 例、`npm test` ≥ 128 例、`tsc -b` / `lint` / `build` 全绿；`tauri dev` 首次写盘后缓存文件含完整 30 首，且重启不再出现 `recommend daily` 的 CLI 调用。
 
+## 3.11 追加需求 R18（v0.12.0）：Tauri 阶段 2 增量 D —— AI 点歌与配置
+
+- Tauri 壳的 AI 面板必须可用：`ai.configGet` / `ai.configSet` / `ai.chat` 三个契约方法不再返回 `UNSUPPORTED`，与 Electron / 预览桥行为对齐。
+- 未配置模型 Key 时走本地规则兜底：音量、暂停/继续、上下首、每日推荐、关键词点歌；提示词、工具定义与回复文案复用 Electron 侧同一套内容，避免两端行为漂移。
+- 配置 Key 后走 OpenAI 兼容 `/chat/completions`，最多 3 轮 function calling；工具执行全部经 Tauri 桥接的目录/播控/CLI 命令，失败回落本地规则并说明原因。
+- 配置持久化到 Tauri `prefs.json`：`baseUrl` / `model` 明文，`apiKey` 以 XOR+hex 混淆（**非系统钥匙串**，安全边界低于 Electron `safeStorage`，需在文档中标注），文件权限 0600；`configGet` 返回 `hasKey` 与内存可用的 `apiKey`。
+- 明确不做：Tauri deb/AppImage 交付、自解码播放、红心/收藏/搜索分页/歌单增删。
+- 验收：`cargo test` ≥ 35 例、`npm test` ≥ 141 例、`tsc -b` / `lint` / `build` 全绿；`tauri dev` 能读取默认 AI 配置且不改动已有 Key。
+
+## 3.12 追加需求 R19（v0.12.1）：封面加载与首屏体验
+
+- 发现页 / 播放页封面必须正常显示，不得因失效的系统代理（实测 GNOME 手动代理指向未运行的 `127.0.0.1:7897`）导致 `ERR_PROXY_CONNECTION_FAILED` 与占位图。
+- 渲染层网络请求直连（AI 模型调用在主进程 `fetch`，不受影响）；封面使用 CDN 缩略图参数 `imageView=1&thumbnail=480x480&quality=80`，单张体积从约 147 KB 降至约 15 KB；首屏封面取消 `loading="lazy"`。
+- 封面地址变化时重置失败状态以允许重试；歌单封面已有的缩略参数保持原样，不重复追加。
+- 验收：安装版实机封面全部加载成功、`resolveProxy` 返回 `DIRECT`、无图片网络失败；`npm test` ≥ 145 例。
+
 ## 4. 验收结果（实测）
 
 | 指标 | 改动前 | 改动后 | 结论 |

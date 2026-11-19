@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Disc3 } from 'lucide-react'
+import { thumbnailUrl } from '../lib/coverUrl'
 import { cn } from '../lib/format'
 
 interface CoverProps {
@@ -11,7 +12,9 @@ interface CoverProps {
 
 export function Cover({ src, alt, className, rounded = 'rounded-xl' }: CoverProps) {
   const [failed, setFailed] = useState(false)
-  const showFallback = !src || failed
+  const source = thumbnailUrl(src)
+  useEffect(() => setFailed(false), [src])
+  const showFallback = !source || failed
 
   return (
     <div className={cn('relative overflow-hidden bg-ink-700', rounded, className)}>
@@ -21,9 +24,10 @@ export function Cover({ src, alt, className, rounded = 'rounded-xl' }: CoverProp
         </div>
       ) : (
         <img
-          src={src}
+          src={source}
           alt={alt}
-          loading="lazy"
+          // 首屏封面立即加载；列表本身已虚拟化，不需要 lazy 延迟
+          loading="eager"
           className="h-full w-full object-cover"
           onError={() => setFailed(true)}
         />

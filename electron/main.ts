@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, shell } from 'electron'
+import { app, BrowserWindow, globalShortcut, session, shell } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { registerIpc } from './ipc'
@@ -117,15 +117,27 @@ if (!gotLock) {
   app.on('second-instance', () => showWindow())
 
   app.whenReady().then(async () => {
+    // 系统代理（GNOME 手动代理）可能指向未运行的本地端口，封面请求会报
+    // ERR_PROXY_CONNECTION_FAILED 并一直显示占位图。渲染层只有封面图片请求，
+    // AI 模型调用在主进程直连，因此这里直接让 Web 层直连，不继承系统代理。
+    try {
+      await session.defaultSession.setProxy({ mode: 'direct' })
+      if (process.env.NCM_DEBUG === '1') {
+        const rule = await session.defaultSession.resolveProxy('https://p1.music.126.net/cover.jpg')
+        console.log(`[proxy] cover CDN => ${rule}`)
+      }
+    } catch (error) {
+      console.error('[proxy] 设置失败', error)
+    }
     registerIpc()
     createWindow()
     createTray(showWindow)
     registerMediaKeys()
     player.subscribe(broadcast)
     // 后台会话探测完成后推给渲染层（冷启动时先用本地缓存渲染）
-    setSessionListener((session) => {
+    setSessionListener((status) => {
       for (const win of BrowserWindow.getAllWindows()) {
-        if (!win.isDestroyed()) win.webContents.send('session:changed', session)
+        if (!win.isDestroyed()) win.webContents.send('session:changed', status)
       }
     })
     // 启动期后台任务延后并保持串行：把首屏渲染与会话/环境探测让给前台
