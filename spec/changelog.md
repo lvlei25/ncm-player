@@ -2,6 +2,21 @@
 
 倒序记录，最新在最上。每条包含：变更内容 / 原因 / 影响文件 / 验证方式。
 
+## v0.13.0 — 2026-11-20 Tauri 阶段 3 交付：deb / AppImage（迁移完成）
+
+**背景**：迁移路线最后一项是 Tauri 打包交付。`tauri.conf.json` 早已配置 `targets: ["deb","appimage"]`，但从未实际构建验证；本机 GitHub 直连超时，构建器下载 `linuxdeploy` 卡住，经可用镜像补齐 `~/.cache/tauri/` 工具缓存后完成。
+
+**产物**
+
+- `src-tauri/target/release/bundle/deb/ncm-player-tauri_0.1.0_amd64.deb`：4.55 MiB，依赖 `libwebkit2gtk-4.1-0` / `mpv` / `libayatana-appindicator3-1` / `libgtk-3-0`，含 `/usr/bin/ncm-player-tauri`、桌面入口与三套图标。
+- `src-tauri/target/release/bundle/appimage/ncm-player-tauri_0.1.0_amd64.AppImage`：86.65 MiB，type2 runtime，自带 GTK/WebKit 依赖。
+
+**验证**：`npm run tauri build` 成功；`dpkg-deb -I/-c` 元数据与文件清单完整；`dpkg -i` 安装后 `ncm-player-tauri 0.1.0` 与 `ncm-player 1.0.0` 并存、桌面入口校验通过，`dpkg -r` 卸载后 Electron 包不受影响；AppImage 可启动，窗口标题「黑胶 · 网易云音乐 (Tauri)」、`busctl` 读到 MPRIS Identity=黑胶音乐、`[mpris]` / `[state]` 日志正常。体积对比：Tauri deb 4.55 MiB 约为 Electron deb 73 MiB 的 1/16；AppImage 因自带运行库大于 Electron deb。
+
+**说明**：本轮仅新增规格与产物验证记录，**无源码逻辑改动**。Tauri 迁移路线至此全部完成。
+
+**影响文件**：`spec/requirements.md`、`spec/tasks.md`、`spec/changelog.md`、`spec/README.md`（构建产物位于 `src-tauri/target/release/bundle/`，已忽略提交）
+
 ## v0.12.1 — 2026-11-19 修复封面加载失败与首屏慢
 
 **背景**：用户反馈首屏渲染慢，截图里数据与文字已到位但封面全是黑胶占位图。CDP 抓包显示 20 次 `net::ERR_PROXY_CONNECTION_FAILED`：GNOME 手动代理指向未运行的 `127.0.0.1:7897`，Electron 的 Chromium 继承了该代理，而同一 URL 用 curl 直连仅 0.14–1 s。启动参数 `proxy-bypass-list` 与 `setProxy({ mode:'system', proxyBypassRules })` 均未能压过 GNOME 设置。

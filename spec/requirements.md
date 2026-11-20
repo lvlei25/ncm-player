@@ -193,6 +193,14 @@
 - 封面地址变化时重置失败状态以允许重试；歌单封面已有的缩略参数保持原样，不重复追加。
 - 验收：安装版实机封面全部加载成功、`resolveProxy` 返回 `DIRECT`、无图片网络失败；`npm test` ≥ 145 例。
 
+## 3.14 追加需求 R20（v0.13.0）：Tauri 阶段 3 交付 —— deb / AppImage
+
+- 用 `npm run tauri build` 产出可安装的 deb 与可执行的 AppImage，`tauri.conf.json` 已配置 `targets: ["deb", "appimage"]`。
+- 产物必须包含阶段 0–2 的全部能力：Rust CLI 桥接、状态持久化、登录闭环、发现页缓存、AI 对话、MPRIS / Dock / 托盘。
+- 验证 deb 元数据（包名 `ncm-player-tauri`、版本、依赖、桌面入口、图标）与文件清单；验证 AppImage 可执行并能启动窗口；与 Electron 版 73 MB 包做体积对比。
+- Tauri 包与 Electron 包并存，不覆盖本机 `ncm-player` 安装。
+- 验收：构建成功、两类产物存在且体积合理、`dpkg-deb -I/-c` 校验通过、AppImage 可启动并显示「黑胶 · 网易云音乐 (Tauri)」窗口。
+
 ## 4. 验收结果（实测）
 
 | 指标 | 改动前 | 改动后 | 结论 |

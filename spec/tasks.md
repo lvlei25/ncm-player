@@ -117,7 +117,7 @@
 
 # v0.7.0 Tauri 迁移（进行中）
 
-路线：**阶段 0** 空壳验证 ✅ → **阶段 1** Rust CLI 桥接 ✅ → **阶段 2** 状态持久化 / 登录闭环 / 发现页缓存 / AI 点歌与配置 ✅（阶段完成）→ **阶段 3** MPRIS 真实播控 + 托盘 ✅ / deb/AppImage 交付待做。
+路线：**阶段 0** 空壳验证 ✅ → **阶段 1** Rust CLI 桥接 ✅ → **阶段 2** 状态持久化 / 登录闭环 / 发现页缓存 / AI 点歌与配置 ✅ → **阶段 3** MPRIS 真实播控 + 托盘 / deb + AppImage 交付 ✅（Tauri 迁移完成）。
 
 ## T16 阶段 1：Rust CLI 桥接
 
@@ -229,6 +229,16 @@
 - [x] 单测：`test/cover.spec.ts` 4 例（空地址 / 原图追加 / 已有参数保留 / 查询串合并）
 - [x] 门禁：`npm test` 145/145、`tsc -b` 零错误、`lint` 0 错误、`build` 成功、`cargo test` 35/35
 - [x] 安装版实机：`[proxy] cover CDN => DIRECT`，29/29 张封面加载成功、网络失败 0，`loading="eager"` 且缩略图自然宽度 480
+
+---
+
+# v0.13.0 Tauri 阶段 3 交付：deb / AppImage
+
+- [x] 规格 R20：`spec/requirements.md` / `tasks.md` / `changelog.md` / `README.md`
+- [x] `npm run tauri build` 成功产出 deb 4.55 MiB + AppImage 86.65 MiB（GitHub 被墙，经镜像补齐 `linuxdeploy` 缓存后完成）
+- [x] deb 校验：`dpkg-deb -I` / `-c` 完整（包名 `ncm-player-tauri` 0.1.0、桌面入口、图标），`dpkg -i` 安装成功且与 `ncm-player` 1.0.0 并存，`dpkg -r` 卸载后 Electron 包未受影响
+- [x] AppImage 校验：type2 runtime 可执行、FUSE 可用，启动窗口「黑胶 · 网易云音乐 (Tauri)」、MPRIS Identity=黑胶音乐、`[state]` 事件正常
+- [x] 体积：Tauri deb 4.55 MiB（Electron 73 MiB，约 1/16）；AppImage 86.65 MiB（自带 GTK/WebKit，反而大于 Electron deb）
 
 ## 后续可做（未在本轮）
 
